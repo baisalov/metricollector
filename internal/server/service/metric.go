@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
@@ -15,14 +16,14 @@ func NewMetricService(storage MetricStorage) *MetricService {
 }
 
 type MetricStorage interface {
-	Get(p metric.Type, name string) (metric.Metric, error)
-	Save(m metric.Metric) error
+	Get(ctx context.Context, t metric.Type, name string) (metric.Metric, error)
+	Save(ctx context.Context, m metric.Metric) error
 }
 
-func (s *MetricService) Gouge(name string, value float64) error {
+func (s *MetricService) Gouge(ctx context.Context, name string, value float64) error {
 	m := metric.NewGougeMetric(name, value)
 
-	err := s.storage.Save(m)
+	err := s.storage.Save(ctx, m)
 
 	if err != nil {
 		return fmt.Errorf("can not save metric: %w", err)
@@ -31,9 +32,9 @@ func (s *MetricService) Gouge(name string, value float64) error {
 	return nil
 }
 
-func (s *MetricService) Count(name string, value int64) error {
+func (s *MetricService) Count(ctx context.Context, name string, value int64) error {
 
-	m, err := s.storage.Get(metric.Counter, name)
+	m, err := s.storage.Get(ctx, metric.Counter, name)
 
 	if err != nil {
 		if !errors.Is(err, metric.ErrMetricNotFound) {
@@ -54,7 +55,7 @@ func (s *MetricService) Count(name string, value int64) error {
 		c = metric.NewCounterMetric(name, value)
 	}
 
-	err = s.storage.Save(c)
+	err = s.storage.Save(ctx, c)
 
 	if err != nil {
 		return fmt.Errorf("can not save metruc: %w", err)

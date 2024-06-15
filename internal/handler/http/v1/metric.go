@@ -29,7 +29,7 @@ func (h *MetricHandler) GougeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.Gouge(name, value)
+	err = h.service.Gouge(r.Context(), name, value)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,7 +53,7 @@ func (h *MetricHandler) CounterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.Count(name, int64(value))
+	err = h.service.Count(r.Context(), name, int64(value))
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

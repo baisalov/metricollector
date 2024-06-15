@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"github.com/baisalov/metricollector/internal/metric"
 	"sync"
@@ -18,7 +19,7 @@ func (s MetricStorage) key(t metric.Type, name string) string {
 	return t.String() + "_" + name
 }
 
-func (s MetricStorage) Get(t metric.Type, name string) (metric.Metric, error) {
+func (s MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
 	mx.Lock()
 
 	defer mx.Unlock()
@@ -48,7 +49,7 @@ func (s MetricStorage) Get(t metric.Type, name string) (metric.Metric, error) {
 	}
 }
 
-func (s MetricStorage) Save(m metric.Metric) error {
+func (s MetricStorage) Save(_ context.Context, m metric.Metric) error {
 	mx.Lock()
 
 	defer mx.Unlock()
