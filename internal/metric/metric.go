@@ -16,6 +16,10 @@ func (t Type) IsValid() bool {
 	}
 }
 
+func (t Type) String() string {
+	return string(t)
+}
+
 type Metric interface {
 	Name() string
 	Value() float64
