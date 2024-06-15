@@ -51,8 +51,8 @@ func (c *CounterMetric) Add(value int64) {
 	c.value += float64(value)
 }
 
-func NewCounterMetric(name string, value int64) CounterMetric {
-	return CounterMetric{metric{
+func NewCounterMetric(name string, value int64) *CounterMetric {
+	return &CounterMetric{metric{
 		name:  name,
 		value: float64(value),
 	}}
@@ -70,8 +70,8 @@ func (g *GougeMetric) Set(value float64) {
 	g.value = value
 }
 
-func NewGougeMetric(name string, value float64) GougeMetric {
-	return GougeMetric{metric{
+func NewGougeMetric(name string, value float64) *GougeMetric {
+	return &GougeMetric{metric{
 		name:  name,
 		value: value,
 	}}
