@@ -1,15 +1,23 @@
 package metric
 
+import "strings"
+
 type Type string
 
 const (
 	Counter Type = "counter"
-	Gouge   Type = "gouge"
+	Gauge   Type = "gauge"
 )
+
+func ParseType(s string) Type {
+	s = strings.TrimSpace(s)
+	s = strings.ToLower(s)
+	return Type(s)
+}
 
 func (t Type) IsValid() bool {
 	switch t {
-	case Counter, Gouge:
+	case Counter, Gauge:
 		return true
 	default:
 		return false
@@ -62,20 +70,20 @@ func NewCounterMetric(name string, value int64) *CounterMetric {
 	}}
 }
 
-type GougeMetric struct {
+type GaugeMetric struct {
 	metric
 }
 
-func (g *GougeMetric) Type() Type {
-	return Gouge
+func (g *GaugeMetric) Type() Type {
+	return Gauge
 }
 
-func (g *GougeMetric) Set(value float64) {
+func (g *GaugeMetric) Set(value float64) {
 	g.value = value
 }
 
-func NewGougeMetric(name string, value float64) *GougeMetric {
-	return &GougeMetric{metric{
+func NewGaugeMetric(name string, value float64) *GaugeMetric {
+	return &GaugeMetric{metric{
 		name:  name,
 		value: value,
 	}}

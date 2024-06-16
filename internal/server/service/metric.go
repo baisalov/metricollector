@@ -20,8 +20,8 @@ type MetricStorage interface {
 	Save(ctx context.Context, m metric.Metric) error
 }
 
-func (s *MetricService) Gouge(ctx context.Context, name string, value float64) error {
-	m := metric.NewGougeMetric(name, value)
+func (s *MetricService) Gauge(ctx context.Context, name string, value float64) error {
+	m := metric.NewGaugeMetric(name, value)
 
 	err := s.storage.Save(ctx, m)
 

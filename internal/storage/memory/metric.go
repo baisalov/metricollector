@@ -30,15 +30,15 @@ func (s MetricStorage) Get(_ context.Context, t metric.Type, name string) (metri
 	}
 
 	switch t {
-	case metric.Gouge:
-		g, ok := m.(*metric.GougeMetric)
+	case metric.Gauge:
+		g, ok := m.(*metric.GaugeMetric)
 		if !ok {
 			return nil, errors.New("incorrect type cast")
 		}
 
 		return g, nil
 	case metric.Counter:
-		c, ok := m.(*metric.GougeMetric)
+		c, ok := m.(*metric.CounterMetric)
 		if !ok {
 			return nil, errors.New("incorrect type cast")
 		}
