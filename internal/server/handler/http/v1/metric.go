@@ -5,7 +5,6 @@ import (
 	"github.com/baisalov/metricollector/internal/metric"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 type MetricHandler struct {
@@ -24,30 +23,22 @@ func NewMetricHandler(service metricService) *MetricHandler {
 }
 
 func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/update/")
 
-	parts := strings.Split(path, "/")
-
-	metricType := metric.ParseType(parts[0])
+	metricType := metric.ParseType(r.PathValue("type"))
 
 	if !metricType.IsValid() {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if len(parts) < 2 || parts[1] == "" {
+	metricName := r.PathValue("name")
+
+	if metricName == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	metricName := parts[1]
-
-	if len(parts) < 3 || parts[2] == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	metricValue := parts[2]
+	metricValue := r.PathValue("value")
 
 	switch metricType {
 	case metric.Counter:
