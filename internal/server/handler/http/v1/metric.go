@@ -1,19 +1,26 @@
 package v1
 
 import (
+	"context"
 	"github.com/baisalov/metricollector/internal/metric"
-	"github.com/baisalov/metricollector/internal/server/service"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
 type MetricHandler struct {
-	service *service.MetricService
+	service metricService
 }
 
-func NewMetricHandler(metricService *service.MetricService) *MetricHandler {
-	return &MetricHandler{service: metricService}
+type metricService interface {
+	Count(ctx context.Context, name string, value int64) error
+	Gauge(ctx context.Context, name string, value float64) error
+}
+
+func NewMetricHandler(service metricService) *MetricHandler {
+	return &MetricHandler{
+		service: service,
+	}
 }
 
 func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
