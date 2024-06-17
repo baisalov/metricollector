@@ -2,59 +2,46 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"github.com/baisalov/metricollector/internal/metric"
 	"sync"
 )
 
-var (
-	mx      sync.Mutex
-	storage = make(map[string]any)
-)
+var ()
 
-type MetricStorage struct {
+type metricStorage struct {
+	mx      sync.Mutex
+	metrics map[string]metric.Metric
 }
 
-func (s MetricStorage) key(t metric.Type, name string) string {
+func NewMetricStorage() *metricStorage {
+	return &metricStorage{
+		metrics: make(map[string]metric.Metric),
+	}
+}
+
+func (s *metricStorage) key(t metric.Type, name string) string {
 	return t.String() + "_" + name
 }
 
-func (s MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
-	mx.Lock()
+func (s *metricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
+	s.mx.Lock()
 
-	defer mx.Unlock()
+	defer s.mx.Unlock()
 
-	m, ok := storage[s.key(t, name)]
+	m, ok := s.metrics[s.key(t, name)]
 	if !ok {
 		return nil, metric.ErrMetricNotFound
 	}
 
-	switch t {
-	case metric.Gauge:
-		g, ok := m.(*metric.GaugeMetric)
-		if !ok {
-			return nil, errors.New("incorrect type cast")
-		}
-
-		return g, nil
-	case metric.Counter:
-		c, ok := m.(*metric.CounterMetric)
-		if !ok {
-			return nil, errors.New("incorrect type cast")
-		}
-
-		return c, nil
-	default:
-		return nil, errors.New("incorrect type cast")
-	}
+	return m, nil
 }
 
-func (s MetricStorage) Save(_ context.Context, m metric.Metric) error {
-	mx.Lock()
+func (s *metricStorage) Save(_ context.Context, m metric.Metric) error {
+	s.mx.Lock()
 
-	defer mx.Unlock()
+	defer s.mx.Unlock()
 
-	storage[s.key(m.Type(), m.Name())] = m.Value()
+	s.metrics[s.key(m.Type(), m.Name())] = m
 
 	return nil
 }

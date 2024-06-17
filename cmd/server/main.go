@@ -17,7 +17,7 @@ import (
 func main() {
 	mux := http.NewServeMux()
 
-	storage := memory.MetricStorage{}
+	storage := memory.NewMetricStorage()
 
 	metricService := service.NewMetricService(storage)
 
