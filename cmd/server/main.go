@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	v1 "github.com/baisalov/metricollector/internal/handler/http/v1"
+	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
-	"github.com/baisalov/metricollector/internal/storage/memory"
+	"github.com/baisalov/metricollector/internal/server/storage/memory"
 	"golang.org/x/sync/errgroup"
 	"net"
 	"net/http"
