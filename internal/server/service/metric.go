@@ -38,11 +38,9 @@ func (s *MetricService) Count(ctx context.Context, name string, value int64) err
 
 	if err != nil {
 		if !errors.Is(err, metric.ErrMetricNotFound) {
-			return nil
+			return err
 		}
 	}
-
-	var c = new(metric.CounterMetric)
 
 	if m != nil {
 		c, ok := m.(*metric.CounterMetric)
@@ -52,10 +50,10 @@ func (s *MetricService) Count(ctx context.Context, name string, value int64) err
 
 		c.Add(value)
 	} else {
-		c = metric.NewCounterMetric(name, value)
+		m = metric.NewCounterMetric(name, value)
 	}
 
-	err = s.storage.Save(ctx, c)
+	err = s.storage.Save(ctx, m)
 
 	if err != nil {
 		return fmt.Errorf("can not save metruc: %w", err)
