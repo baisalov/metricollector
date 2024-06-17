@@ -6,24 +6,22 @@ import (
 	"sync"
 )
 
-var ()
-
-type metricStorage struct {
+type MetricStorage struct {
 	mx      sync.Mutex
 	metrics map[string]metric.Metric
 }
 
-func NewMetricStorage() *metricStorage {
-	return &metricStorage{
+func NewMetricStorage() *MetricStorage {
+	return &MetricStorage{
 		metrics: make(map[string]metric.Metric),
 	}
 }
 
-func (s *metricStorage) key(t metric.Type, name string) string {
+func (s *MetricStorage) key(t metric.Type, name string) string {
 	return t.String() + "_" + name
 }
 
-func (s *metricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
+func (s *MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
 	s.mx.Lock()
 
 	defer s.mx.Unlock()
@@ -36,7 +34,7 @@ func (s *metricStorage) Get(_ context.Context, t metric.Type, name string) (metr
 	return m, nil
 }
 
-func (s *metricStorage) Save(_ context.Context, m metric.Metric) error {
+func (s *MetricStorage) Save(_ context.Context, m metric.Metric) error {
 	s.mx.Lock()
 
 	defer s.mx.Unlock()
