@@ -18,7 +18,7 @@ var (
 )
 
 func main() {
-	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHttpSender("http://localhost:8080"))
+	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender("http://localhost:8080"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

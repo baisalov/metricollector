@@ -8,19 +8,19 @@ import (
 	"net/http"
 )
 
-type HttpSender struct {
+type HTTPSender struct {
 	address string
 	client  *http.Client
 }
 
-func NewHttpSender(address string) *HttpSender {
-	return &HttpSender{
+func NewHTTPSender(address string) *HTTPSender {
+	return &HTTPSender{
 		address: address,
 		client:  http.DefaultClient,
 	}
 }
 
-func (s *HttpSender) Send(ctx context.Context, metric metric.Metric) error {
+func (s *HTTPSender) Send(ctx context.Context, metric metric.Metric) error {
 
 	url := fmt.Sprintf("%s/update/%s/%s/%v", s.address, metric.Type(), metric.Name(), metric.Value())
 
