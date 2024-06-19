@@ -24,6 +24,8 @@ func main() {
 	h := v1.NewMetricHandler(metricService)
 
 	mux.HandleFunc(`POST /update/{type}/{name}/{value}`, h.Update)
+	mux.HandleFunc(`GET /value/{type}/{name}`, h.Value)
+	mux.HandleFunc(`GET /`, h.AllValues)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

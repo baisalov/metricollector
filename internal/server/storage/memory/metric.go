@@ -43,3 +43,17 @@ func (s *MetricStorage) Save(_ context.Context, m metric.Metric) error {
 
 	return nil
 }
+
+func (s *MetricStorage) All(_ context.Context) ([]metric.Metric, error) {
+	s.mx.Lock()
+
+	defer s.mx.Unlock()
+
+	var metrics []metric.Metric
+
+	for _, m := range s.metrics {
+		metrics = append(metrics, m)
+	}
+
+	return metrics, nil
+}

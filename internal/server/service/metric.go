@@ -18,6 +18,7 @@ func NewMetricService(storage MetricStorage) *MetricService {
 type MetricStorage interface {
 	Get(ctx context.Context, t metric.Type, name string) (metric.Metric, error)
 	Save(ctx context.Context, m metric.Metric) error
+	All(ctx context.Context) ([]metric.Metric, error)
 }
 
 func (s *MetricService) Gauge(ctx context.Context, name string, value float64) error {
@@ -60,4 +61,12 @@ func (s *MetricService) Count(ctx context.Context, name string, value int64) err
 	}
 
 	return nil
+}
+
+func (s *MetricService) Get(ctx context.Context, t metric.Type, name string) (metric.Metric, error) {
+	return s.storage.Get(ctx, t, name)
+}
+
+func (s *MetricService) All(ctx context.Context) ([]metric.Metric, error) {
+	return s.storage.All(ctx)
 }
