@@ -26,7 +26,7 @@ func main() {
 	defer stop()
 
 	httpServer := &http.Server{
-		Addr:    ":8080",
+		Addr:    runningAddress,
 		Handler: h.Handler(),
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
