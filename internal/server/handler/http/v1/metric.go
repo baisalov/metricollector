@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
+	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
 )
@@ -27,18 +28,17 @@ func NewMetricHandler(service metricService) *MetricHandler {
 }
 
 func (h *MetricHandler) Handler() http.Handler {
-	updateHandler := http.NewServeMux()
-	updateHandler.HandleFunc(`POST /{type}/{name}/{value}`, h.Update)
-	updateHandler.HandleFunc(`POST /{type}`, http.NotFound)
 
-	mux := http.NewServeMux()
+	router := chi.NewRouter()
 
-	mux.Handle(`POST /update/`, http.StripPrefix("/update", updateHandler))
-	mux.HandleFunc(`GET /value/{type}/{name}`, h.Value)
-	mux.HandleFunc(`GET /`, h.AllValues)
-	mux.HandleFunc("POST /", http.NotFound)
+	router.Route(`/update/`, func(r chi.Router) {
+		r.Post(`/{type}/{name}/{value}`, h.Update)
+	})
 
-	return mux
+	router.Get(`/value/{type}/{name}`, h.Value)
+	router.Get(`/`, h.AllValues)
+
+	return router
 }
 
 func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
