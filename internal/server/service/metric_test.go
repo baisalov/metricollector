@@ -132,7 +132,7 @@ func TestMetricService_Get(t *testing.T) {
 
 	storage.On("Get", ctx, metric.Counter, name).Return(nil, errors.New("unexpected error"))
 
-	actual, err := service.Get(ctx, metric.Counter, name)
+	_, err := service.Get(ctx, metric.Counter, name)
 	assert.Error(t, err)
 
 	storage.AssertExpectations(t)
@@ -141,7 +141,7 @@ func TestMetricService_Get(t *testing.T) {
 
 	storage.On("Get", ctx, metric.Counter, name).Return(nil, metric.ErrMetricNotFound)
 
-	actual, err = service.Get(ctx, metric.Counter, name)
+	_, err = service.Get(ctx, metric.Counter, name)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, metric.ErrMetricNotFound)
 
@@ -152,7 +152,7 @@ func TestMetricService_Get(t *testing.T) {
 
 	storage.On("Get", ctx, metric.Counter, name).Return(metric.NewCounterMetric(name, value), nil)
 
-	actual, err = service.Get(ctx, metric.Counter, name)
+	actual, err := service.Get(ctx, metric.Counter, name)
 
 	require.NoError(t, err)
 
