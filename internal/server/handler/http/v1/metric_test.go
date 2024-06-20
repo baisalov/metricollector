@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupHandler(storage *memory.MetricStorage) http.Handler {
+func setupServer(storage *memory.MetricStorage) *httptest.Server {
 	serv := service.NewMetricService(storage)
 
 	handler := NewMetricHandler(serv)
 
-	return handler.Handler()
+	return httptest.NewServer(handler.Handler())
 }
 
 func TestMetricHandler_Update(t *testing.T) {
@@ -101,18 +101,20 @@ func TestMetricHandler_Update(t *testing.T) {
 
 	storage := memory.NewMetricStorage()
 
-	handler := setupHandler(storage)
+	server := setupServer(storage)
+	defer server.Close()
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
-			w := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodPost, server.URL+tt.request, nil)
 
-			handler.ServeHTTP(w, request)
+			require.NoError(t, err)
 
-			result := w.Result()
+			result, err := server.Client().Do(request)
 
-			err := result.Body.Close()
+			require.NoError(t, err)
+
+			err = result.Body.Close()
 
 			require.NoError(t, err)
 
@@ -149,16 +151,18 @@ func TestMetricHandler_Value(t *testing.T) {
 
 	testCases = append(testCases, m1, m2, m3)
 
-	handler := setupHandler(storage)
+	server := setupServer(storage)
+	defer server.Close()
 
 	for _, tt := range testCases {
 		t.Run(tt.Name(), func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/value/%s/%s", tt.Type(), tt.Name()), nil)
-			w := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", tt.Type(), tt.Name()), nil)
 
-			handler.ServeHTTP(w, request)
+			require.NoError(t, err)
 
-			result := w.Result()
+			result, err := server.Client().Do(request)
+
+			require.NoError(t, err)
 
 			body, err := io.ReadAll(result.Body)
 
@@ -175,12 +179,13 @@ func TestMetricHandler_Value(t *testing.T) {
 	}
 
 	t.Run("bad request", func(t *testing.T) {
-		request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/value/%s/%s", "incorrect_type", "not_fund"), nil)
-		w := httptest.NewRecorder()
+		request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", "incorrect_type", "not_fund"), nil)
 
-		handler.ServeHTTP(w, request)
+		require.NoError(t, err)
 
-		result := w.Result()
+		result, err := server.Client().Do(request)
+
+		require.NoError(t, err)
 
 		err = result.Body.Close()
 
@@ -190,12 +195,13 @@ func TestMetricHandler_Value(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/value/%s/%s", "counter", "not_fund"), nil)
-		w := httptest.NewRecorder()
+		request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", "counter", "not_fund"), nil)
 
-		handler.ServeHTTP(w, request)
+		require.NoError(t, err)
 
-		result := w.Result()
+		result, err := server.Client().Do(request)
+
+		require.NoError(t, err)
 
 		err = result.Body.Close()
 
@@ -225,14 +231,16 @@ func TestMetricHandler_AllValues(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	handler := setupHandler(storage)
+	server := setupServer(storage)
+	defer server.Close()
 
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/", nil)
 
-	handler.ServeHTTP(w, request)
+	require.NoError(t, err)
 
-	result := w.Result()
+	result, err := server.Client().Do(request)
+
+	require.NoError(t, err)
 
 	body, err := io.ReadAll(result.Body)
 
