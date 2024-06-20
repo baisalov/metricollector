@@ -63,8 +63,8 @@ func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 	case metric.Counter:
 		value, err := strconv.Atoi(metricValue)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
 			http.Error(w, "incorrect counter metric value", http.StatusBadRequest)
+			return
 		}
 
 		err = h.service.Count(r.Context(), metricName, int64(value))
