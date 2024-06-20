@@ -22,17 +22,7 @@ func setupHandler(storage *memory.MetricStorage) http.Handler {
 
 	handler := NewMetricHandler(serv)
 
-	updateHandler := http.NewServeMux()
-	updateHandler.HandleFunc(`POST /{type}/{name}/{value}`, handler.Update)
-	updateHandler.HandleFunc(`POST /{type}`, http.NotFound)
-
-	mux := http.NewServeMux()
-
-	mux.Handle(`POST /update/`, http.StripPrefix("/update", updateHandler))
-	mux.HandleFunc(`GET /`, handler.AllValues)
-	mux.HandleFunc("POST /", http.NotFound)
-
-	return mux
+	return handler.Handler()
 }
 
 func TestMetricHandler_Update(t *testing.T) {

@@ -26,6 +26,21 @@ func NewMetricHandler(service metricService) *MetricHandler {
 	}
 }
 
+func (h *MetricHandler) Handler() http.Handler {
+	updateHandler := http.NewServeMux()
+	updateHandler.HandleFunc(`POST /{type}/{name}/{value}`, h.Update)
+	updateHandler.HandleFunc(`POST /{type}`, http.NotFound)
+
+	mux := http.NewServeMux()
+
+	mux.Handle(`POST /update/`, http.StripPrefix("/update", updateHandler))
+	mux.HandleFunc(`GET /value/{type}/{name}`, h.Value)
+	mux.HandleFunc(`GET /`, h.AllValues)
+	mux.HandleFunc("POST /", http.NotFound)
+
+	return mux
+}
+
 func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	metricType := metric.ParseType(r.PathValue("type"))

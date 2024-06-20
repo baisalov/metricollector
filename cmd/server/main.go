@@ -22,22 +22,12 @@ func main() {
 
 	h := v1.NewMetricHandler(metricService)
 
-	updateHandler := http.NewServeMux()
-	updateHandler.HandleFunc(`POST /{type}/{name}/{value}`, h.Update)
-	updateHandler.HandleFunc(`POST /{type}`, http.NotFound)
-
-	mux := http.NewServeMux()
-
-	mux.Handle(`POST /update/`, http.StripPrefix("/update", updateHandler))
-	mux.HandleFunc(`GET /`, h.AllValues)
-	mux.HandleFunc("POST /", http.NotFound)
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	httpServer := &http.Server{
 		Addr:    ":8080",
-		Handler: mux,
+		Handler: h.Handler(),
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
