@@ -6,6 +6,7 @@ import (
 	"github.com/baisalov/metricollector/internal/metric"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type HTTPSender struct {
@@ -14,6 +15,10 @@ type HTTPSender struct {
 }
 
 func NewHTTPSender(address string) *HTTPSender {
+	if !strings.HasPrefix(address, "http://") || !strings.HasPrefix(address, "https://") {
+		address = "http://" + address
+	}
+
 	return &HTTPSender{
 		address: address,
 		client:  http.DefaultClient,
