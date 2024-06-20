@@ -2,18 +2,17 @@ package main
 
 import (
 	"flag"
-	"time"
 )
 
 var (
-	pullInterval   time.Duration
-	reportInterval time.Duration
+	pullInterval   int64
+	reportInterval int64
 	reportAddress  string
 )
 
 func init() {
-	flag.DurationVar(&pullInterval, "p", 2*time.Second, "interval for pulling metrics")
-	flag.DurationVar(&reportInterval, "r", 10*time.Second, "interval for reporting")
+	flag.Int64Var(&pullInterval, "p", 2, "interval for pulling metrics in seconds")
+	flag.Int64Var(&reportInterval, "r", 10, "interval for reporting in seconds")
 	flag.StringVar(&reportAddress, "a", "localhost:8080", "http address for reporting")
 
 	flag.Parse()

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	err := metricAgent.Run(ctx, pullInterval, reportInterval)
+	err := metricAgent.Run(ctx, time.Duration(pullInterval)*time.Second, time.Duration(reportInterval)*time.Second)
 
 	if err != nil {
 		log.Printf("metric agent stop: %v\n", err.Error())
