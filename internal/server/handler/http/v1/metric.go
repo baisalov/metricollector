@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type MetricHandler struct {
@@ -126,16 +127,29 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := "<html><head><title>Metrics</title></head><body><ol>"
-
-	for _, m := range metrics {
-		body += fmt.Sprintf("<li>%s: %v</li>", m.Name(), m.Value())
+	var body strings.Builder
+	_, err = body.WriteString("<html><head><title>Metrics</title></head><body><ol>")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	body += "</ol></body></html>"
+	for _, m := range metrics {
+		_, err = fmt.Fprintf(&body, "<li>%s: %v</li>", m.Name(), m.Value())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	_, err = body.WriteString("</ol></body></html>")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 
-	w.Write([]byte(body))
+	w.Write([]byte(body.String()))
 }
