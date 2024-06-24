@@ -16,6 +16,8 @@ import (
 func main() {
 	conf := config.MustLoad()
 
+	log.Printf("running metric agent with environments: %+v\n", conf)
+
 	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender(conf.ReportAddress))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

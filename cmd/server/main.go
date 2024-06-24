@@ -19,6 +19,8 @@ func main() {
 
 	conf := config.MustLoad()
 
+	log.Printf("running metric server with environments: %+v\n", conf)
+
 	storage := memory.NewMetricStorage()
 
 	metricService := service.NewMetricService(storage)

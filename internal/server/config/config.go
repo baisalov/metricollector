@@ -2,11 +2,12 @@ package config
 
 import (
 	"flag"
-	"os"
+	"github.com/caarlos0/env/v11"
+	"log"
 )
 
 type Config struct {
-	Address string
+	Address string `env:"ADDRESS"`
 }
 
 func MustLoad() Config {
@@ -16,8 +17,9 @@ func MustLoad() Config {
 
 	flag.Parse()
 
-	if address := os.Getenv("ADDRESS"); address != "" {
-		conf.Address = address
+	err := env.Parse(&conf)
+	if err != nil {
+		log.Fatalf("Failed to load environments: %s", err.Error())
 	}
 
 	return conf

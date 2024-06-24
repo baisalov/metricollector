@@ -2,15 +2,14 @@ package config
 
 import (
 	"flag"
+	"github.com/caarlos0/env/v11"
 	"log"
-	"os"
-	"strconv"
 )
 
 type Config struct {
-	PullInterval   int64
-	ReportInterval int64
-	ReportAddress  string
+	PullInterval   int64  `env:"POLL_INTERVAL"`
+	ReportInterval int64  `env:"REPORT_INTERVAL"`
+	ReportAddress  string `env:"ADDRESS"`
 }
 
 func MustLoad() Config {
@@ -22,26 +21,9 @@ func MustLoad() Config {
 
 	flag.Parse()
 
-	if address := os.Getenv("ADDRESS"); address != "" {
-		conf.ReportAddress = address
-	}
-
-	if val := os.Getenv("REPORT_INTERVAL"); val != "" {
-		interval, err := strconv.Atoi(val)
-		if err != nil {
-			log.Fatal("cant parse REPORT_INTERVAL:", err)
-		}
-
-		conf.ReportInterval = int64(interval)
-	}
-
-	if val := os.Getenv("POLL_INTERVAL"); val != "" {
-		interval, err := strconv.Atoi(val)
-		if err != nil {
-			log.Fatal("cant parse POLL_INTERVAL:", err)
-		}
-
-		conf.PullInterval = int64(interval)
+	err := env.Parse(&conf)
+	if err != nil {
+		log.Fatalf("Failed to load environments: %s", err.Error())
 	}
 
 	return conf
