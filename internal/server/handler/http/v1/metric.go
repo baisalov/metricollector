@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"github.com/go-chi/chi/v5"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -116,7 +117,10 @@ func (h *MetricHandler) Value(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	value := strconv.FormatFloat(m.Value(), 'g', -1, 64)
 
-	w.Write([]byte(value))
+	_, err = w.Write([]byte(value))
+	if err != nil {
+		log.Println("Failed to write response body: ", err.Error())
+	}
 }
 
 func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
@@ -151,5 +155,8 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 
-	w.Write([]byte(body.String()))
+	_, err = w.Write([]byte(body.String()))
+	if err != nil {
+		log.Println("Failed to write response body: ", err.Error())
+	}
 }
