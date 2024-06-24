@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/baisalov/metricollector/internal/agent"
+	"github.com/baisalov/metricollector/internal/agent/config"
 	"github.com/baisalov/metricollector/internal/agent/sender"
 	"github.com/baisalov/metricollector/internal/metric/provider"
 	"log"
@@ -13,12 +14,16 @@ import (
 )
 
 func main() {
-	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender(reportAddress))
+	conf := config.MustLoad()
+
+	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender(conf.ReportAddress))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	err := metricAgent.Run(ctx, time.Duration(pullInterval)*time.Second, time.Duration(reportInterval)*time.Second)
+	err := metricAgent.Run(ctx,
+		time.Duration(conf.PullInterval)*time.Second,
+		time.Duration(conf.ReportInterval)*time.Second)
 
 	if err != nil {
 		log.Printf("metric agent stop: %s\n", err.Error())

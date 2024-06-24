@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/baisalov/metricollector/internal/server/config"
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
@@ -16,6 +17,8 @@ import (
 
 func main() {
 
+	conf := config.MustLoad()
+
 	storage := memory.NewMetricStorage()
 
 	metricService := service.NewMetricService(storage)
@@ -26,7 +29,7 @@ func main() {
 	defer stop()
 
 	httpServer := &http.Server{
-		Addr:    runningAddress,
+		Addr:    conf.Address,
 		Handler: h.Handler(),
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
