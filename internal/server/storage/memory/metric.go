@@ -49,7 +49,7 @@ func (s *MetricStorage) All(_ context.Context) ([]metric.Metric, error) {
 
 	defer s.mx.Unlock()
 
-	var metrics []metric.Metric
+	metrics := make([]metric.Metric, 0, len(s.metrics))
 
 	for _, m := range s.metrics {
 		metrics = append(metrics, m)
