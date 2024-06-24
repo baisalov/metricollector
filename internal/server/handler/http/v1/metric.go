@@ -47,17 +47,7 @@ func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	metricType := metric.ParseType(r.PathValue("type"))
 
-	if !metricType.IsValid() {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	metricName := r.PathValue("name")
-
-	if metricName == "" {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
 
 	metricValue := r.PathValue("value")
 
@@ -70,12 +60,11 @@ func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = h.service.Count(r.Context(), metricName, int64(value))
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	default:
+	case metric.Gauge:
 		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			http.Error(w, "incorrect gauge metric value", http.StatusBadRequest)
@@ -83,12 +72,13 @@ func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = h.service.Gauge(r.Context(), metricName, value)
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+	default:
+		http.Error(w, "incorrect metric type", http.StatusBadRequest)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -111,10 +101,12 @@ func (h *MetricHandler) Value(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
+
 	value := strconv.FormatFloat(m.Value(), 'g', -1, 64)
 
 	_, err = w.Write([]byte(value))
@@ -132,6 +124,7 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body strings.Builder
+
 	_, err = body.WriteString("<html><head><title>Metrics</title></head><body><ol>")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
