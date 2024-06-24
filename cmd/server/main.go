@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
 	"golang.org/x/sync/errgroup"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -44,6 +44,6 @@ func main() {
 	})
 
 	if err := g.Wait(); err != nil {
-		fmt.Printf("exit reason: %s \n", err)
+		log.Printf("exit reason: %s \n", err.Error())
 	}
 }

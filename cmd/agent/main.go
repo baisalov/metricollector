@@ -21,8 +21,8 @@ func main() {
 	err := metricAgent.Run(ctx, time.Duration(pullInterval)*time.Second, time.Duration(reportInterval)*time.Second)
 
 	if err != nil {
-		log.Printf("metric agent stop: %v\n", err.Error())
+		log.Printf("metric agent stop: %s\n", err.Error())
 	} else {
-		log.Printf("metric agent stop")
+		log.Println("metric agent stop")
 	}
 }
