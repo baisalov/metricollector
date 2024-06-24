@@ -6,6 +6,7 @@ import (
 	"github.com/baisalov/metricollector/internal/metric"
 	"golang.org/x/sync/errgroup"
 	"log"
+	"maps"
 	"math/rand"
 	"sync"
 	"time"
@@ -87,10 +88,11 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 			default:
 				log.Println("start sending metrics")
 
-				var localStat map[string]metric.Metric
-
 				a.mx.RLock()
-				localStat = a.state
+
+				localStat := make(map[string]metric.Metric, len(a.state))
+				maps.Copy(localStat, a.state)
+
 				a.mx.RUnlock()
 
 				for _, m := range localStat {
