@@ -40,20 +40,18 @@ func (s *HTTPSender) Send(ctx context.Context, metric metric.Metric) error {
 
 	res, err := client.Do(req)
 
-	if res != nil {
-		defer func() {
-			if err := res.Body.Close(); err != nil {
-				log.Printf("cant close response body: %v", err.Error())
-			}
-		}()
-	}
-
 	if err != nil {
 		return fmt.Errorf("cant do request: %w", err)
 	}
 
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %s\n", err.Error())
+		}
+	}()
+
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpexted response status: %d", res.StatusCode)
+		return fmt.Errorf("unexpected response status: %d", res.StatusCode)
 	}
 
 	return nil
