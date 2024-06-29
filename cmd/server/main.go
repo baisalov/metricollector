@@ -8,7 +8,7 @@ import (
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
 	"golang.org/x/sync/errgroup"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -20,7 +20,15 @@ func main() {
 
 	conf := config.MustLoad()
 
-	log.Printf("running metric server with environments: %+v\n", conf)
+	logOpt := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, logOpt))
+
+	slog.SetDefault(log)
+
+	log.Info("running metric server", "env", conf)
 
 	storage := memory.NewMetricStorage()
 
@@ -52,6 +60,6 @@ func main() {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Printf("exit reason: %s \n", err.Error())
+		log.Error("server stopped", "reason", err.Error())
 	}
 }
