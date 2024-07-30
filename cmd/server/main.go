@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -37,13 +38,14 @@ func main() {
 	h := v1.NewMetricHandler(metricService)
 
 	loggerMiddleware := middleware.RequestLogger()
+	acceptedContentType := middleware.AcceptedContentTypeJson()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	httpServer := &http.Server{
 		Addr:    conf.Address,
-		Handler: loggerMiddleware(h.Handler()),
+		Handler: loggerMiddleware(acceptedContentType(h.Handler())),
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
@@ -56,7 +58,10 @@ func main() {
 
 	g.Go(func() error {
 		<-ctx.Done()
-		return httpServer.Shutdown(context.Background())
+		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		return httpServer.Shutdown(timeout)
 	})
 
 	if err := g.Wait(); err != nil {
