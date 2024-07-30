@@ -38,7 +38,7 @@ func main() {
 	h := v1.NewMetricHandler(metricService)
 
 	loggerMiddleware := middleware.RequestLogger()
-	acceptedContentType := middleware.AcceptedContentTypeJson()
+	acceptedContentType := middleware.AcceptedContentTypeJSON()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

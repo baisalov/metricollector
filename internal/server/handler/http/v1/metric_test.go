@@ -20,7 +20,7 @@ import (
 func setupServer(storage *memory.MetricStorage) *httptest.Server {
 	serv := service.NewMetricService(storage)
 
-	jsonContent := middleware.AcceptedContentTypeJson()
+	jsonContent := middleware.AcceptedContentTypeJSON()
 
 	handler := NewMetricHandler(serv)
 
