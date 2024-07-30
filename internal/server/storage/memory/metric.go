@@ -7,7 +7,7 @@ import (
 )
 
 type MetricStorage struct {
-	mx      sync.Mutex
+	mx      sync.RWMutex
 	metrics map[string]metric.Metric
 }
 
@@ -22,9 +22,9 @@ func (s *MetricStorage) key(t metric.Type, name string) string {
 }
 
 func (s *MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
-	s.mx.Lock()
+	s.mx.RLock()
 
-	defer s.mx.Unlock()
+	defer s.mx.RUnlock()
 
 	m, ok := s.metrics[s.key(t, name)]
 	if !ok {
@@ -45,9 +45,9 @@ func (s *MetricStorage) Save(_ context.Context, m metric.Metric) error {
 }
 
 func (s *MetricStorage) All(_ context.Context) ([]metric.Metric, error) {
-	s.mx.Lock()
+	s.mx.RLock()
 
-	defer s.mx.Unlock()
+	defer s.mx.RUnlock()
 
 	metrics := make([]metric.Metric, 0, len(s.metrics))
 
