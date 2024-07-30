@@ -79,8 +79,10 @@ func TestMetricService_Count(t *testing.T) {
 	storage.On("Get", ctx, metric.Counter, name).Return(nil, metric.ErrMetricNotFound)
 	storage.On("Save", ctx, counterMetric).Return(nil)
 
-	err := service.Count(ctx, name, value)
+	val, err := service.Count(ctx, name, value)
 	assert.NoError(t, err)
+
+	assert.Equal(t, value, val)
 
 	storage.AssertExpectations(t)
 }
@@ -98,10 +100,11 @@ func TestMetricService_Count_UpdateExisting(t *testing.T) {
 	storage.On("Get", ctx, metric.Counter, name).Return(existingCounterMetric, nil)
 	storage.On("Save", ctx, existingCounterMetric).Return(nil)
 
-	err := service.Count(ctx, name, value)
+	val, err := service.Count(ctx, name, value)
 	assert.NoError(t, err)
 
 	assert.Equal(t, float64(15), existingCounterMetric.Value())
+	assert.Equal(t, existingCounterMetric.Value(), float64(val))
 
 	storage.AssertExpectations(t)
 }
@@ -116,7 +119,7 @@ func TestMetricService_Count_Error(t *testing.T) {
 
 	storage.On("Get", ctx, metric.Counter, name).Return(nil, errors.New("unexpected error"))
 
-	err := service.Count(ctx, name, value)
+	_, err := service.Count(ctx, name, value)
 	assert.Error(t, err)
 
 	storage.AssertExpectations(t)
