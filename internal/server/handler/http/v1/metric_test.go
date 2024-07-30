@@ -70,9 +70,13 @@ func TestMetricHandler_Update(t *testing.T) {
 
 	storage := memory.NewMetricStorage()
 
-	storage.Save(context.Background(), metric.NewCounterMetric("IssetCounter", 10))
+	err := storage.Save(context.Background(), metric.NewCounterMetric("IssetCounter", 10))
 
-	storage.Save(context.Background(), metric.NewGaugeMetric("IssetGauge", 20))
+	require.NoError(t, err)
+
+	err = storage.Save(context.Background(), metric.NewGaugeMetric("IssetGauge", 20))
+
+	require.NoError(t, err)
 
 	server := setupServer(storage)
 	defer server.Close()
@@ -227,10 +231,16 @@ func TestMetricHandler_Value(t *testing.T) {
 	storage := memory.NewMetricStorage()
 
 	issetCounter := metric.NewCounterMetric("IssetCounter", 10)
-	storage.Save(context.Background(), issetCounter)
+
+	err := storage.Save(context.Background(), issetCounter)
+
+	require.NoError(t, err)
 
 	issetGauge := metric.NewGaugeMetric("IssetGauge", 20)
-	storage.Save(context.Background(), issetGauge)
+
+	err = storage.Save(context.Background(), issetGauge)
+
+	require.NoError(t, err)
 
 	server := setupServer(storage)
 	defer server.Close()
