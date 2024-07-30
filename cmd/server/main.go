@@ -38,14 +38,13 @@ func main() {
 	h := v1.NewMetricHandler(metricService)
 
 	loggerMiddleware := middleware.RequestLogger()
-	acceptedContentType := middleware.AcceptedContentTypeJSON()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	httpServer := &http.Server{
 		Addr:    conf.Address,
-		Handler: loggerMiddleware(acceptedContentType(h.Handler())),
+		Handler: loggerMiddleware(h.Handler()),
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
