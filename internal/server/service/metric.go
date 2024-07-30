@@ -33,20 +33,20 @@ func (s *MetricService) Gauge(ctx context.Context, name string, value float64) e
 	return nil
 }
 
-func (s *MetricService) Count(ctx context.Context, name string, value int64) error {
+func (s *MetricService) Count(ctx context.Context, name string, value int64) (int64, error) {
 
 	m, err := s.storage.Get(ctx, metric.Counter, name)
 
 	if err != nil {
 		if !errors.Is(err, metric.ErrMetricNotFound) {
-			return err
+			return 0, err
 		}
 	}
 
 	if m != nil {
 		c, ok := m.(*metric.CounterMetric)
 		if !ok {
-			return metric.ErrIncorrectMetricType
+			return 0, metric.ErrIncorrectMetricType
 		}
 
 		c.Add(value)
@@ -57,10 +57,10 @@ func (s *MetricService) Count(ctx context.Context, name string, value int64) err
 	err = s.storage.Save(ctx, m)
 
 	if err != nil {
-		return fmt.Errorf("can not save metruc: %w", err)
+		return 0, fmt.Errorf("can not save metruc: %w", err)
 	}
 
-	return nil
+	return int64(m.Value()), nil
 }
 
 func (s *MetricService) Get(ctx context.Context, t metric.Type, name string) (metric.Metric, error) {
