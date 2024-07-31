@@ -48,6 +48,8 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
+		time.Sleep(pullInterval)
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -63,6 +65,8 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 	})
 
 	g.Go(func() error {
+		time.Sleep(reportInterval)
+
 		for {
 			select {
 			case <-ctx.Done():
