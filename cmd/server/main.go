@@ -43,8 +43,12 @@ func main() {
 	defer stop()
 
 	httpServer := &http.Server{
-		Addr:    conf.Address,
-		Handler: loggerMiddleware(h.Handler()),
+		Addr:         conf.Address,
+		Handler:      loggerMiddleware(h.Handler()),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+
 		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
