@@ -628,11 +628,13 @@ func TestGzipCompress(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		defer resp.Body.Close()
-
 		bb, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.JSONEq(t, string(b), string(bb))
+
+		err = resp.Body.Close()
+
+		require.NoError(t, err)
 	})
 
 	t.Run("accepts_gzip", func(t *testing.T) {
@@ -650,8 +652,6 @@ func TestGzipCompress(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		defer resp.Body.Close()
-
 		zr, err := gzip.NewReader(resp.Body)
 		require.NoError(t, err)
 
@@ -659,5 +659,9 @@ func TestGzipCompress(t *testing.T) {
 		require.NoError(t, err)
 
 		require.JSONEq(t, string(b), string(bb))
+
+		err = resp.Body.Close()
+
+		require.NoError(t, err)
 	})
 }
