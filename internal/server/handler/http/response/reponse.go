@@ -12,9 +12,10 @@ type errorResponse struct {
 }
 
 func Error(w http.ResponseWriter, message string, status int) {
-	w.WriteHeader(status)
 
 	writeBody(w, errorResponse{status, message})
+
+	w.WriteHeader(status)
 }
 
 type successResponse struct {
@@ -23,9 +24,9 @@ type successResponse struct {
 }
 
 func Ok(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusOK)
-
 	writeBody(w, successResponse{http.StatusOK, "OK"})
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func Success(w http.ResponseWriter, body any) {
@@ -35,9 +36,9 @@ func Success(w http.ResponseWriter, body any) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
 	writeBody(w, body)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func writeBody(w http.ResponseWriter, body any) {
