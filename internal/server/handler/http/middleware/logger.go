@@ -29,30 +29,27 @@ func (w loggingResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-func RequestLogger() func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
+func RequestLogging(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
 
-			ww := loggingResponseWriter{
-				ResponseWriter: w,
-				d: &responseData{
-					size:   0,
-					status: 0,
-				},
-			}
-
-			t1 := time.Now()
-
-			next.ServeHTTP(ww, r)
-
-			slog.Info(r.RequestURI,
-				"method", r.Method,
-				"status", ww.d.status,
-				"duration", time.Since(t1).Milliseconds(),
-				"body", ww.d.size)
+		ww := loggingResponseWriter{
+			ResponseWriter: w,
+			d: &responseData{
+				size:   0,
+				status: 0,
+			},
 		}
 
-		return http.HandlerFunc(fn)
+		t1 := time.Now()
+
+		next.ServeHTTP(ww, r)
+
+		slog.Info(r.RequestURI,
+			"method", r.Method,
+			"status", ww.d.status,
+			"duration", time.Since(t1).Milliseconds(),
+			"body", ww.d.size)
 	}
 
+	return http.HandlerFunc(fn)
 }

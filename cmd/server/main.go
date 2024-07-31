@@ -37,14 +37,12 @@ func main() {
 
 	h := v1.NewMetricHandler(metricService)
 
-	loggerMiddleware := middleware.RequestLogger()
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	httpServer := &http.Server{
 		Addr:         conf.Address,
-		Handler:      loggerMiddleware(middleware.GzipCompress(h.Handler())),
+		Handler:      middleware.RequestLogging(middleware.GzipCompress(h.Handler())),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
