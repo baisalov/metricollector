@@ -2,6 +2,7 @@ package v1
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -583,4 +584,80 @@ func TestMetricHandler_AllValues(t *testing.T) {
 	}
 
 	assert.Equal(t, match, len(metrics))
+}
+
+func TestGzipCompress(t *testing.T) {
+	storage := memory.NewMetricStorage()
+
+	server := setupServer(storage)
+	defer server.Close()
+
+	val := float64(10)
+
+	m := Metrics{
+		ID:    "test",
+		MType: "gauge",
+		Delta: nil,
+		Value: &val,
+	}
+
+	b, err := json.Marshal(m)
+
+	require.NoError(t, err)
+
+	t.Run("sends_gzip", func(t *testing.T) {
+
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+
+		_, err := zb.Write(b)
+
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
+
+		r, err := http.NewRequest("POST", server.URL+"/update/", buf)
+
+		require.NoError(t, err)
+
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Accept-Encoding", "")
+
+		resp, err := http.DefaultClient.Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		bb, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, string(b), string(bb))
+	})
+
+	t.Run("accepts_gzip", func(t *testing.T) {
+
+		buf := bytes.NewBuffer(b)
+
+		r, err := http.NewRequest("POST", server.URL+"/update/", buf)
+
+		require.NoError(t, err)
+
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept-Encoding", "gzip")
+
+		resp, err := http.DefaultClient.Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+
+		bb, err := io.ReadAll(zr)
+		require.NoError(t, err)
+
+		require.JSONEq(t, string(b), string(bb))
+	})
 }

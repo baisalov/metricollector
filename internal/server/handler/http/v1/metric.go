@@ -51,7 +51,7 @@ func (h *MetricHandler) Handler() http.Handler {
 	router.Method(http.MethodPost, `/value/`, acceptedContentType(http.HandlerFunc(h.ValueV2)))
 	router.Method(http.MethodPost, `/`, acceptedContentType(http.HandlerFunc(h.AllValuesV2)))
 
-	return router
+	return middleware.GzipCompress(router)
 }
 
 func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {

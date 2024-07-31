@@ -42,7 +42,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:         conf.Address,
-		Handler:      middleware.RequestLogging(middleware.GzipCompress(h.Handler())),
+		Handler:      middleware.RequestLogging(h.Handler()),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
