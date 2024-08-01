@@ -1,7 +1,10 @@
 package metric
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -64,5 +67,18 @@ func TestMetric_Validate(t *testing.T) {
 		assert.Error(t, err)
 		assert.ErrorIs(t, ErrIncorrectValue, err)
 	})
+}
 
+func TestMetric_ValueToString(t *testing.T) {
+	t.Run("counter", func(t *testing.T) {
+		m := NewCounterMetric("test", 10)
+
+		assert.Equal(t, strconv.FormatInt(*m.Delta, 10), m.ValueToString())
+	})
+
+	t.Run("gauge", func(t *testing.T) {
+		m := NewGaugeMetric("test", 10.0001000)
+
+		assert.Equal(t, strings.TrimRight(fmt.Sprintf("%.3f", *m.Value), "0."), m.ValueToString())
+	})
 }

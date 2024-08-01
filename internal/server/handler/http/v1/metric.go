@@ -221,15 +221,7 @@ func (h *MetricHandler) Value(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	var value string
-
-	if m.MType == metric.Counter {
-		value = strconv.FormatInt(*m.Delta, 10)
-	} else {
-		value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
-	}
-
-	_, err = w.Write([]byte(value))
+	_, err = w.Write([]byte(m.ValueToString()))
 	if err != nil {
 		slog.Error("Failed to write response body", "error", err)
 	}
@@ -253,17 +245,9 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var value string
-
 	for _, m := range res {
 
-		if m.MType == metric.Counter {
-			value = strconv.FormatInt(*m.Delta, 10)
-		} else {
-			value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
-		}
-
-		_, err = fmt.Fprintf(&body, "<li>%s: %v</li>", m.ID, value)
+		_, err = fmt.Fprintf(&body, "<li>%s: %v</li>", m.ID, m.ValueToString())
 		if err != nil {
 			slog.Error("failed to write content body", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

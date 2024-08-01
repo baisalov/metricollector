@@ -2,6 +2,8 @@ package metric
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -52,4 +54,11 @@ func (m Metric) Validate() error {
 	}
 
 	return nil
+}
+
+func (m Metric) ValueToString() string {
+	if m.MType == Counter {
+		return strconv.FormatInt(*m.Delta, 10)
+	}
+	return strings.TrimRight(fmt.Sprintf("%.3f", *m.Value), "0.")
 }

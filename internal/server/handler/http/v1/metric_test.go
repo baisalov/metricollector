@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -476,8 +475,6 @@ func TestMetricHandler_Value(t *testing.T) {
 	server := setupServer(storage)
 	defer server.Close()
 
-	var value string
-
 	for _, tt := range testCases {
 		t.Run(tt.ID, func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", tt.MType, tt.ID), nil)
@@ -500,13 +497,7 @@ func TestMetricHandler_Value(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, result.StatusCode)
 
-			if tt.MType == metric.Counter {
-				value = strconv.FormatInt(*tt.Delta, 10)
-			} else {
-				value = strconv.FormatFloat(*tt.Value, 'f', 10, 64)
-			}
-
-			assert.Equal(t, value, string(body))
+			assert.Equal(t, tt.ValueToString(), string(body))
 		})
 	}
 
@@ -585,17 +576,9 @@ func TestMetricHandler_AllValues(t *testing.T) {
 
 	match := 0
 
-	var value string
-
 	for _, m := range metrics {
 
-		if m.MType == metric.Counter {
-			value = strconv.FormatInt(*m.Delta, 10)
-		} else {
-			value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
-		}
-
-		if strings.Contains(html, fmt.Sprintf("<li>%s: %v</li>", m.ID, value)) {
+		if strings.Contains(html, fmt.Sprintf("<li>%s: %v</li>", m.ID, m.ValueToString())) {
 			match++
 		}
 	}
