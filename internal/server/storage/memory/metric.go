@@ -17,18 +17,18 @@ func NewMetricStorage() *MetricStorage {
 	}
 }
 
-func (s *MetricStorage) key(t metric.Type, name string) string {
-	return t.String() + "_" + name
+func (s *MetricStorage) key(t metric.Type, id string) string {
+	return t.String() + "_" + id
 }
 
-func (s *MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
+func (s *MetricStorage) Get(_ context.Context, t metric.Type, id string) (metric.Metric, error) {
 	s.mx.RLock()
 
 	defer s.mx.RUnlock()
 
-	m, ok := s.metrics[s.key(t, name)]
+	m, ok := s.metrics[s.key(t, id)]
 	if !ok {
-		return nil, metric.ErrMetricNotFound
+		return metric.Metric{}, metric.ErrMetricNotFound
 	}
 
 	return m, nil
@@ -39,7 +39,7 @@ func (s *MetricStorage) Save(_ context.Context, m metric.Metric) error {
 
 	defer s.mx.Unlock()
 
-	s.metrics[s.key(m.Type(), m.Name())] = m
+	s.metrics[s.key(m.MType, m.ID)] = m
 
 	return nil
 }
