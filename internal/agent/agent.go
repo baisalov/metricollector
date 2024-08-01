@@ -98,13 +98,13 @@ func (a *MetricAgent) pull() {
 	a.mx.Lock()
 
 	for _, v := range metrics {
-		a.state[v.Name()] = v
+		a.state[v.ID] = v
 	}
 
 	a.state[keyRandomValue] = metric.NewGaugeMetric(keyRandomValue, rand.Float64())
 
-	if pullCount, ok := a.state[keyPullCount].(*metric.CounterMetric); ok {
-		pullCount.Add(1)
+	if pullCount, ok := a.state[keyPullCount]; ok {
+		*pullCount.Delta = *pullCount.Delta + 1
 		a.state[keyPullCount] = pullCount
 	} else {
 		a.state[keyPullCount] = metric.NewCounterMetric(keyPullCount, 1)
