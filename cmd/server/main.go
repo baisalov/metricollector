@@ -31,7 +31,35 @@ func main() {
 
 	log.Info("running metric server", "env", conf)
 
-	storage := memory.NewMetricStorage()
+	slog.Info("creating file")
+	file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
+	if err != nil {
+		log.Error("failed to open file", "error", err)
+		return
+	}
+
+	defer func(file *os.File) {
+		slog.Debug("closing file")
+		err = file.Close()
+		if err != nil {
+			slog.Error("failed to close file", "error", err)
+		}
+	}(file)
+
+	slog.Info("init storage")
+	storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
+	if err != nil {
+		log.Error("failed to init storage", "error", err)
+		return
+	}
+
+	defer func(storage *memory.MetricStorage) {
+		slog.Debug("closing storage")
+		err = storage.Close()
+		if err != nil {
+			slog.Error("failed to close storage", "error", err)
+		}
+	}(storage)
 
 	metricUpdater := service.NewMetricUpdateService(storage)
 
@@ -53,6 +81,9 @@ func main() {
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
+
+	slog.Info("running server")
+
 	g.Go(func() error {
 		return httpServer.ListenAndServe()
 	})
