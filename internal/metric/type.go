@@ -44,7 +44,7 @@ func (t *Type) UnmarshalJSON(bytes []byte) error {
 	tt := ParseType(v)
 
 	if !tt.IsValid() {
-		return ErrIncorrectValue
+		return ErrIncorrectType
 	}
 
 	*t = tt
