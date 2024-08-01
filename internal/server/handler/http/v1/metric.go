@@ -66,6 +66,7 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Error("failed to decode request", "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -81,6 +82,7 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 	case metric.Counter:
 		d, err := h.service.Count(r.Context(), request.ID, *request.Delta)
 		if err != nil {
+			slog.Error("failed to save counter metric", "error", err)
 			response.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -89,6 +91,7 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 	case metric.Gauge:
 		err := h.service.Gauge(r.Context(), request.ID, *request.Value)
 		if err != nil {
+			slog.Error("failed to save gauge metric", "error", err)
 			response.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -112,6 +115,7 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Error("failed to decode request", "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -130,6 +134,7 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Error("failed to get metric", "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -141,6 +146,7 @@ func (h *MetricHandler) AllValuesV2(w http.ResponseWriter, r *http.Request) {
 
 	metrics, err := h.service.All(r.Context())
 	if err != nil {
+		slog.Error("failed to get metrics", "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
