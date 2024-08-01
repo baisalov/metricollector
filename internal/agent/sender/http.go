@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"github.com/go-resty/resty/v2"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -64,7 +64,7 @@ func (s *HTTPSender) Send(ctx context.Context, m metric.Metric) error {
 		return fmt.Errorf("failed compress data: %w", err)
 	}
 
-	log.Printf("sending metric: %+v\n", m)
+	slog.Debug("sending metric", "metric", m)
 
 	res, err := s.client.R().
 		SetContext(ctx).

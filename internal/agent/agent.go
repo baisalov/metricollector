@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"golang.org/x/sync/errgroup"
-	"log"
+	"log/slog"
 	"maps"
 	"math/rand"
 	"sync"
@@ -43,7 +43,7 @@ func NewMetricAgent(provider metricProvider, sender metricSender) *MetricAgent {
 
 func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time.Duration) error {
 
-	log.Println("metric agent start")
+	slog.Info("metric agent start")
 
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -55,7 +55,7 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				log.Println("start loading metrics")
+				slog.Info("start loading metrics")
 
 				a.pull()
 			}
@@ -72,7 +72,7 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				log.Println("start sending metrics")
+				slog.Info("start sending metrics")
 
 				err := a.report(ctx)
 				if err != nil {
