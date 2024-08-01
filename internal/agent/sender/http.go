@@ -98,7 +98,7 @@ func (s *HTTPSender) Send(ctx context.Context, m metric.Metric) error {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
-		SetBody(&zip).
+		SetBody(zip.Bytes()).
 		Post(addr)
 
 	if err != nil {
