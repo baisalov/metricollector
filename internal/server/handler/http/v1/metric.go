@@ -10,7 +10,6 @@ import (
 	"github.com/baisalov/metricollector/internal/server/handler/http/response"
 	"github.com/go-chi/chi/v5"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -18,19 +17,23 @@ import (
 )
 
 type MetricHandler struct {
-	service metricService
+	provider metricProvider
+	updater  metricUpdater
 }
 
-type metricService interface {
-	Count(ctx context.Context, name string, value int64) (int64, error)
-	Gauge(ctx context.Context, name string, value float64) error
-	Get(ctx context.Context, t metric.Type, name string) (metric.Metric, error)
+type metricUpdater interface {
+	Update(ctx context.Context, m metric.Metric) (metric.Metric, error)
+}
+
+type metricProvider interface {
+	Get(ctx context.Context, t metric.Type, id string) (metric.Metric, error)
 	All(ctx context.Context) ([]metric.Metric, error)
 }
 
-func NewMetricHandler(service metricService) *MetricHandler {
+func NewMetricHandler(provider metricProvider, updater metricUpdater) *MetricHandler {
 	return &MetricHandler{
-		service: service,
+		provider: provider,
+		updater:  updater,
 	}
 }
 
@@ -58,11 +61,16 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 
-	var request Metrics
+	var request metric.Metric
 
 	if err := decoder.Decode(&request); err != nil {
 		if errors.Is(err, io.EOF) {
 			response.Error(w, "empty request body", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, metric.ErrIncorrectType) {
+			response.Error(w, metric.ErrIncorrectType.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -71,47 +79,37 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := request.ValidateForUpdate(); err != nil {
+	if err := request.Validate(); err != nil {
 		response.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	slog.Debug("Update", "request", request)
 
-	switch request.Type() {
-	case metric.Counter:
-		d, err := h.service.Count(r.Context(), request.ID, *request.Delta)
-		if err != nil {
-			slog.Error("failed to save counter metric", "error", err)
-			response.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		request.Delta = &d
-	case metric.Gauge:
-		err := h.service.Gauge(r.Context(), request.ID, *request.Value)
-		if err != nil {
-			slog.Error("failed to save gauge metric", "error", err)
-			response.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	default:
-		response.Error(w, "incorrect metric type", http.StatusBadRequest)
+	res, err := h.updater.Update(r.Context(), request)
+	if err != nil {
+		slog.Error("failed to update metric", "error", err)
+		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	response.Success(w, request)
+	response.Success(w, res)
 }
 
 func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 
-	var request Metrics
+	var req metric.Metric
 
-	if err := decoder.Decode(&request); err != nil {
+	if err := decoder.Decode(&req); err != nil {
 		if errors.Is(err, io.EOF) {
 			response.Error(w, "empty request body", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, metric.ErrIncorrectType) {
+			response.Error(w, metric.ErrIncorrectType.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -120,14 +118,13 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := request.ValidateForValue(); err != nil {
-		response.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if strings.TrimSpace(req.ID) == "" {
+		response.Error(w, "empty metric name", http.StatusBadRequest)
 	}
 
-	slog.Debug("Value", "request", request)
+	slog.Debug("Value", "request", req)
 
-	m, err := h.service.Get(r.Context(), request.Type(), request.ID)
+	res, err := h.provider.Get(r.Context(), req.MType, req.ID)
 	if err != nil {
 		if errors.Is(err, metric.ErrMetricNotFound) {
 			response.Error(w, "metric not found", http.StatusNotFound)
@@ -139,22 +136,16 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Success(w, ConvertMetric(m))
+	response.Success(w, res)
 }
 
 func (h *MetricHandler) AllValuesV2(w http.ResponseWriter, r *http.Request) {
 
-	metrics, err := h.service.All(r.Context())
+	res, err := h.provider.All(r.Context())
 	if err != nil {
 		slog.Error("failed to get metrics", "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	var res []Metrics
-
-	for _, m := range metrics {
-		res = append(res, ConvertMetric(m))
 	}
 
 	response.Success(w, res)
@@ -162,39 +153,43 @@ func (h *MetricHandler) AllValuesV2(w http.ResponseWriter, r *http.Request) {
 
 func (h *MetricHandler) Update(w http.ResponseWriter, r *http.Request) {
 
-	metricType := metric.ParseType(r.PathValue("type"))
-
-	metricName := r.PathValue("name")
+	m := metric.Metric{
+		MType: metric.ParseType(r.PathValue("type")),
+		ID:    r.PathValue("name"),
+	}
 
 	metricValue := r.PathValue("value")
 
-	switch metricType {
-	case metric.Counter:
+	if m.MType == metric.Counter {
 		value, err := strconv.Atoi(metricValue)
 		if err != nil {
 			http.Error(w, "incorrect counter metric value", http.StatusBadRequest)
 			return
 		}
 
-		_, err = h.service.Count(r.Context(), metricName, int64(value))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case metric.Gauge:
+		delta := int64(value)
+
+		m.Delta = &delta
+
+	} else {
 		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			http.Error(w, "incorrect gauge metric value", http.StatusBadRequest)
 			return
 		}
 
-		err = h.service.Gauge(r.Context(), metricName, value)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	default:
-		http.Error(w, "incorrect metric type", http.StatusBadRequest)
+		m.Value = &value
+	}
+
+	if err := m.Validate(); err != nil {
+		response.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err := h.updater.Update(r.Context(), m)
+	if err != nil {
+		slog.Error("failed to update metric", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -210,13 +205,14 @@ func (h *MetricHandler) Value(w http.ResponseWriter, r *http.Request) {
 
 	metricName := r.PathValue("name")
 
-	m, err := h.service.Get(r.Context(), metricType, metricName)
+	m, err := h.provider.Get(r.Context(), metricType, metricName)
 	if err != nil {
 		if errors.Is(err, metric.ErrMetricNotFound) {
 			http.Error(w, "metric not found", http.StatusNotFound)
 			return
 		}
 
+		slog.Error("failed to get metric", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -225,18 +221,25 @@ func (h *MetricHandler) Value(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	value := strconv.FormatFloat(m.Value(), 'g', -1, 64)
+	var value string
+
+	if m.MType == metric.Counter {
+		value = strconv.FormatInt(*m.Delta, 10)
+	} else {
+		value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
+	}
 
 	_, err = w.Write([]byte(value))
 	if err != nil {
-		log.Println("Failed to write response body: ", err.Error())
+		slog.Error("Failed to write response body", "error", err)
 	}
 }
 
 func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 
-	metrics, err := h.service.All(r.Context())
+	res, err := h.provider.All(r.Context())
 	if err != nil {
+		slog.Error("failed to get metrics", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -245,20 +248,33 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 
 	_, err = body.WriteString("<html><head><title>Metrics</title></head><body><ol>")
 	if err != nil {
+		slog.Error("failed to write content header", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	for _, m := range metrics {
-		_, err = fmt.Fprintf(&body, "<li>%s: %v</li>", m.Name(), m.Value())
+	var value string
+
+	for _, m := range res {
+
+		if m.MType == metric.Counter {
+			value = strconv.FormatInt(*m.Delta, 10)
+		} else {
+			value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
+		}
+
+		_, err = fmt.Fprintf(&body, "<li>%s: %v</li>", m.ID, value)
 		if err != nil {
+			slog.Error("failed to write content body", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 	}
 
 	_, err = body.WriteString("</ol></body></html>")
 	if err != nil {
+		slog.Error("failed to write content bottom", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -269,6 +285,6 @@ func (h *MetricHandler) AllValues(w http.ResponseWriter, r *http.Request) {
 
 	_, err = w.Write([]byte(body.String()))
 	if err != nil {
-		log.Println("Failed to write response body: ", err.Error())
+		slog.Error("Failed to write response body", err)
 	}
 }

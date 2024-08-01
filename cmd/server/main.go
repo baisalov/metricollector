@@ -33,9 +33,9 @@ func main() {
 
 	storage := memory.NewMetricStorage()
 
-	metricService := service.NewMetricService(storage)
+	metricUpdater := service.NewMetricUpdateService(storage)
 
-	h := v1.NewMetricHandler(metricService)
+	h := v1.NewMetricHandler(storage, metricUpdater)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

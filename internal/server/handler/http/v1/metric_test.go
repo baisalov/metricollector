@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"github.com/baisalov/metricollector/internal/server/service"
-	"github.com/baisalov/metricollector/internal/server/storage/memory"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -20,15 +20,52 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupServer(storage *memory.MetricStorage) *httptest.Server {
-	serv := service.NewMetricService(storage)
+func metricMatcher(match string) func(id string) bool {
+	return func(id string) bool {
+		return match == id
+	}
+}
 
-	handler := NewMetricHandler(serv)
+type metricStorageMock struct {
+	mock.Mock
+}
+
+func (s *metricStorageMock) Get(ctx context.Context, t metric.Type, id string) (metric.Metric, error) {
+	args := s.Called(ctx, t, id)
+	return args.Get(0).(metric.Metric), args.Error(1)
+}
+
+func (s *metricStorageMock) Save(ctx context.Context, m metric.Metric) error {
+	args := s.Called(ctx, m)
+	return args.Error(0)
+}
+
+func (s *metricStorageMock) All(ctx context.Context) ([]metric.Metric, error) {
+	args := s.Called(ctx)
+
+	var metrics []metric.Metric
+
+	for i := 0; i < len(args); i++ {
+		arg := args.Get(i)
+		if arg != nil {
+			if m, ok := arg.(metric.Metric); ok {
+				metrics = append(metrics, m)
+			}
+		}
+	}
+
+	return metrics, args.Error(len(args) - 1)
+}
+
+func setupServer(storage *metricStorageMock) *httptest.Server {
+	serv := service.NewMetricUpdateService(storage)
+
+	handler := NewMetricHandler(storage, serv)
 
 	return httptest.NewServer(handler.Handler())
 }
 
-func encode(t *testing.T, m Metrics) io.Reader {
+func encode(t *testing.T, m metric.Metric) io.Reader {
 	var buf bytes.Buffer
 
 	enc := json.NewEncoder(&buf)
@@ -69,34 +106,30 @@ func doRequest(t *testing.T, server *httptest.Server, url string, r io.Reader) (
 
 func TestMetricHandler_UpdateV2(t *testing.T) {
 
-	storage := memory.NewMetricStorage()
+	storage := &metricStorageMock{}
 
-	err := storage.Save(context.Background(), metric.NewCounterMetric("IssetCounter", 10))
+	existCounter := metric.NewCounterMetric("ExistCounter", 23)
+	existGauge := metric.NewGaugeMetric("ExistGauge", 20)
 
-	require.NoError(t, err)
+	newCounter := metric.NewCounterMetric("NewCounter", 10)
+	newGouge := metric.NewGaugeMetric("NewGouge", 10)
 
-	err = storage.Save(context.Background(), metric.NewGaugeMetric("IssetGauge", 20))
-
-	require.NoError(t, err)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(existCounter.ID))).Return(existCounter, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(existGauge.ID))).Return(existGauge, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(newCounter.ID))).Return(metric.Metric{}, metric.ErrMetricNotFound)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(newGouge.ID))).Return(metric.Metric{}, metric.ErrMetricNotFound)
+	storage.On("Save", mock.Anything, mock.Anything).Return(nil)
 
 	server := setupServer(storage)
 	defer server.Close()
 
-	t.Run("save counter", func(t *testing.T) {
+	t.Run("save new counter", func(t *testing.T) {
 
-		val := int64(10)
-
-		m := Metrics{
-			ID:    "NewCounter",
-			MType: metric.Counter.String(),
-			Delta: &val,
-		}
-
-		status, res := doRequest(t, server, "/update/", encode(t, m))
+		status, res := doRequest(t, server, "/update/", encode(t, newCounter))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -104,25 +137,17 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, m, mm)
+		assert.Equal(t, newCounter, mm)
 
 	})
 
-	t.Run("save gauge", func(t *testing.T) {
+	t.Run("save new gauge", func(t *testing.T) {
 
-		val := float64(10)
-
-		m := Metrics{
-			ID:    "NewGouge",
-			MType: metric.Gauge.String(),
-			Value: &val,
-		}
-
-		status, res := doRequest(t, server, "/update/", encode(t, m))
+		status, res := doRequest(t, server, "/update/", encode(t, newGouge))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -130,25 +155,19 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, m, mm)
+		assert.Equal(t, newGouge, mm)
 
 	})
 
-	t.Run("save isset counter", func(t *testing.T) {
+	t.Run("update exist counter", func(t *testing.T) {
 
-		val := int64(10)
-
-		m := Metrics{
-			ID:    "IssetCounter",
-			MType: metric.Counter.String(),
-			Delta: &val,
-		}
+		m := metric.NewCounterMetric("ExistCounter", 10)
 
 		status, res := doRequest(t, server, "/update/", encode(t, m))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -158,24 +177,18 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 		assert.Equal(t, m.ID, mm.ID)
 		assert.Equal(t, m.MType, mm.MType)
-		assert.Equal(t, int64(20), *mm.Delta)
+		assert.Equal(t, int64(33), *mm.Delta)
 	})
 
-	t.Run("save isset gauge", func(t *testing.T) {
+	t.Run("update exist gauge", func(t *testing.T) {
 
-		val := float64(10)
-
-		m := Metrics{
-			ID:    "IssetGouge",
-			MType: metric.Gauge.String(),
-			Value: &val,
-		}
+		m := metric.NewGaugeMetric("ExistGauge", 30)
 
 		status, res := doRequest(t, server, "/update/", encode(t, m))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -191,7 +204,7 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 		val := float64(10)
 
-		m := Metrics{
+		m := metric.Metric{
 			ID:    "IncorrectType",
 			MType: "incorrect",
 			Value: &val,
@@ -204,9 +217,9 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 	t.Run("save incorrect value 1", func(t *testing.T) {
 
-		m := Metrics{
+		m := metric.Metric{
 			ID:    "IncorrectValue#1",
-			MType: metric.Counter.String(),
+			MType: metric.Counter,
 		}
 
 		status, _ := doRequest(t, server, "/update/", encode(t, m))
@@ -216,9 +229,9 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 	t.Run("save incorrect value 2", func(t *testing.T) {
 
-		m := Metrics{
+		m := metric.Metric{
 			ID:    "IncorrectValue#2",
-			MType: metric.Gauge.String(),
+			MType: metric.Gauge,
 		}
 
 		status, _ := doRequest(t, server, "/update/", encode(t, m))
@@ -229,35 +242,32 @@ func TestMetricHandler_UpdateV2(t *testing.T) {
 
 func TestMetricHandler_ValueV2(t *testing.T) {
 
-	storage := memory.NewMetricStorage()
+	storage := &metricStorageMock{}
 
-	issetCounter := metric.NewCounterMetric("IssetCounter", 10)
+	existCounter := metric.NewCounterMetric("ExistCounter", 10)
+	existGauge := metric.NewGaugeMetric("ExistGauge", 20)
 
-	err := storage.Save(context.Background(), issetCounter)
-
-	require.NoError(t, err)
-
-	issetGauge := metric.NewGaugeMetric("IssetGauge", 20)
-
-	err = storage.Save(context.Background(), issetGauge)
-
-	require.NoError(t, err)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(existCounter.ID))).Return(existCounter, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(existGauge.ID))).Return(existGauge, nil)
+	storage.On("All", mock.Anything).Return(existCounter, existGauge, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher("NotFoundCounter"))).Return(metric.Metric{}, metric.ErrMetricNotFound)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher("NotFoundGauge"))).Return(metric.Metric{}, metric.ErrMetricNotFound)
 
 	server := setupServer(storage)
 	defer server.Close()
 
 	t.Run("counter", func(t *testing.T) {
 
-		m := Metrics{
-			ID:    "IssetCounter",
-			MType: metric.Counter.String(),
+		m := metric.Metric{
+			ID:    "ExistCounter",
+			MType: metric.Counter,
 		}
 
 		status, res := doRequest(t, server, "/value/", encode(t, m))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -267,22 +277,22 @@ func TestMetricHandler_ValueV2(t *testing.T) {
 
 		assert.Equal(t, m.ID, mm.ID)
 		assert.Equal(t, m.MType, mm.MType)
-		assert.Equal(t, int64(issetCounter.Value()), *mm.Delta)
+		assert.Equal(t, *existCounter.Delta, *mm.Delta)
 
 	})
 
 	t.Run("gauge", func(t *testing.T) {
 
-		m := Metrics{
-			ID:    "IssetGauge",
-			MType: metric.Gauge.String(),
+		m := metric.Metric{
+			ID:    "ExistGauge",
+			MType: metric.Gauge,
 		}
 
 		status, res := doRequest(t, server, "/value/", encode(t, m))
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm Metrics
+		var mm metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -292,14 +302,14 @@ func TestMetricHandler_ValueV2(t *testing.T) {
 
 		assert.Equal(t, m.ID, mm.ID)
 		assert.Equal(t, m.MType, mm.MType)
-		assert.Equal(t, issetGauge.Value(), *mm.Value)
+		assert.Equal(t, *existGauge.Value, *mm.Value)
 	})
 
 	t.Run("not found counter", func(t *testing.T) {
 
-		m := Metrics{
+		m := metric.Metric{
 			ID:    "NotFoundCounter",
-			MType: metric.Counter.String(),
+			MType: metric.Counter,
 		}
 
 		status, _ := doRequest(t, server, "/value/", encode(t, m))
@@ -311,9 +321,9 @@ func TestMetricHandler_ValueV2(t *testing.T) {
 
 		val := int64(10)
 
-		m := Metrics{
+		m := metric.Metric{
 			ID:    "NotFoundGauge",
-			MType: metric.Gauge.String(),
+			MType: metric.Gauge,
 			Delta: &val,
 		}
 
@@ -323,16 +333,16 @@ func TestMetricHandler_ValueV2(t *testing.T) {
 	})
 
 	t.Run("all", func(t *testing.T) {
-		m := []Metrics{
-			ConvertMetric(issetCounter),
-			ConvertMetric(issetGauge),
+		m := []metric.Metric{
+			existCounter,
+			existGauge,
 		}
 
 		status, res := doRequest(t, server, "/", nil)
 
 		require.Equal(t, http.StatusOK, status)
 
-		var mm []Metrics
+		var mm []metric.Metric
 
 		dec := json.NewDecoder(res)
 
@@ -418,7 +428,11 @@ func TestMetricHandler_Update(t *testing.T) {
 		},
 	}
 
-	storage := memory.NewMetricStorage()
+	storage := &metricStorageMock{}
+
+	storage.On("Save", mock.Anything, mock.Anything).Return(nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher("testGauge"))).Return(metric.NewGaugeMetric("testGauge", 20), nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher("testCounter"))).Return(metric.NewCounterMetric("testCounter", 20), nil)
 
 	server := setupServer(storage)
 	defer server.Close()
@@ -444,38 +458,29 @@ func TestMetricHandler_Update(t *testing.T) {
 
 func TestMetricHandler_Value(t *testing.T) {
 
-	storage := memory.NewMetricStorage()
-
-	ctx := context.TODO()
+	storage := &metricStorageMock{}
 
 	var testCases []metric.Metric
 
 	m1 := metric.NewCounterMetric("test_counter_metric", 10)
-
-	err := storage.Save(ctx, m1)
-
-	require.NoError(t, err)
-
 	m2 := metric.NewCounterMetric("test_gauge_metric", 15)
-
-	err = storage.Save(ctx, m2)
-
-	require.NoError(t, err)
-
 	m3 := metric.NewGaugeMetric("test_gauge_metric_with_pointer", 1.5000000000001)
 
-	err = storage.Save(ctx, m3)
-
-	require.NoError(t, err)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(m1.ID))).Return(m1, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(m2.ID))).Return(m2, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(m3.ID))).Return(m3, nil)
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher("not_fund"))).Return(metric.Metric{}, metric.ErrMetricNotFound)
 
 	testCases = append(testCases, m1, m2, m3)
 
 	server := setupServer(storage)
 	defer server.Close()
 
+	var value string
+
 	for _, tt := range testCases {
-		t.Run(tt.Name(), func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", tt.Type(), tt.Name()), nil)
+		t.Run(tt.ID, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", tt.MType, tt.ID), nil)
 
 			request.Header.Set("Accept-Encoding", "")
 
@@ -495,7 +500,13 @@ func TestMetricHandler_Value(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, result.StatusCode)
 
-			assert.Equal(t, strconv.FormatFloat(tt.Value(), 'g', -1, 64), string(body))
+			if tt.MType == metric.Counter {
+				value = strconv.FormatInt(*tt.Delta, 10)
+			} else {
+				value = strconv.FormatFloat(*tt.Value, 'f', 10, 64)
+			}
+
+			assert.Equal(t, value, string(body))
 		})
 	}
 
@@ -535,22 +546,17 @@ func TestMetricHandler_Value(t *testing.T) {
 
 func TestMetricHandler_AllValues(t *testing.T) {
 
+	m1 := metric.NewCounterMetric("test_counter_metric", 10)
+	m2 := metric.NewGaugeMetric("test_gauge_metric", 15)
+	m3 := metric.NewGaugeMetric("test_gauge_metric_with_pointer", 15.100000000002)
+
 	var metrics []metric.Metric
 
-	metrics = append(metrics,
-		metric.NewCounterMetric("test_counter_metric", 10),
-		metric.NewGaugeMetric("test_gauge_metric", 15),
-		metric.NewGaugeMetric("test_gauge_metric_with_pointer", 15.100000000002))
+	metrics = append(metrics, m1, m2, m3)
 
-	storage := memory.NewMetricStorage()
+	storage := &metricStorageMock{}
 
-	ctx := context.TODO()
-
-	for _, m := range metrics {
-		err := storage.Save(ctx, m)
-
-		require.NoError(t, err)
-	}
+	storage.On("All", mock.Anything).Return(m1, m2, m3, nil)
 
 	server := setupServer(storage)
 	defer server.Close()
@@ -579,8 +585,17 @@ func TestMetricHandler_AllValues(t *testing.T) {
 
 	match := 0
 
+	var value string
+
 	for _, m := range metrics {
-		if strings.Contains(html, fmt.Sprintf("<li>%s: %v</li>", m.Name(), m.Value())) {
+
+		if m.MType == metric.Counter {
+			value = strconv.FormatInt(*m.Delta, 10)
+		} else {
+			value = strconv.FormatFloat(*m.Value, 'f', 10, 64)
+		}
+
+		if strings.Contains(html, fmt.Sprintf("<li>%s: %v</li>", m.ID, value)) {
 			match++
 		}
 	}
@@ -589,21 +604,17 @@ func TestMetricHandler_AllValues(t *testing.T) {
 }
 
 func TestGzipCompress(t *testing.T) {
-	storage := memory.NewMetricStorage()
+	storage := &metricStorageMock{}
 
 	server := setupServer(storage)
 	defer server.Close()
 
-	val := float64(10)
+	existMetric := metric.NewGaugeMetric("existMetric", 10)
 
-	m := Metrics{
-		ID:    "test",
-		MType: "gauge",
-		Delta: nil,
-		Value: &val,
-	}
+	storage.On("Get", mock.Anything, mock.Anything, mock.MatchedBy(metricMatcher(existMetric.ID))).Return(existMetric, nil)
+	storage.On("Save", mock.Anything, mock.Anything).Return(nil)
 
-	b, err := json.Marshal(m)
+	b, err := json.Marshal(existMetric)
 
 	require.NoError(t, err)
 
