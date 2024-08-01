@@ -477,6 +477,8 @@ func TestMetricHandler_Value(t *testing.T) {
 		t.Run(tt.Name(), func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodGet, server.URL+fmt.Sprintf("/value/%s/%s", tt.Type(), tt.Name()), nil)
 
+			request.Header.Set("Accept-Encoding", "")
+
 			require.NoError(t, err)
 
 			result, err := server.Client().Do(request)
@@ -493,7 +495,7 @@ func TestMetricHandler_Value(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, result.StatusCode)
 
-			assert.Equal(t, string(body), strconv.FormatFloat(tt.Value(), 'g', -1, 64))
+			assert.Equal(t, strconv.FormatFloat(tt.Value(), 'g', -1, 64), string(body))
 		})
 	}
 
