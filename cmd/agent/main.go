@@ -36,7 +36,7 @@ func main() {
 		time.Duration(conf.ReportInterval)*time.Second)
 
 	if err != nil {
-		log.Error("metric agent stop", "error")
+		log.Error("metric agent stop", "error", err)
 	} else {
 		log.Info("metric agent stop")
 	}
