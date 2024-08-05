@@ -6,7 +6,7 @@ import (
 	"github.com/baisalov/metricollector/internal/agent/config"
 	"github.com/baisalov/metricollector/internal/agent/sender"
 	"github.com/baisalov/metricollector/internal/metric/provider"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,7 +16,15 @@ import (
 func main() {
 	conf := config.MustLoad()
 
-	log.Printf("running metric agent with environments: %+v\n", conf)
+	logOpt := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, logOpt))
+
+	slog.SetDefault(log)
+
+	log.Info("running metric agent", "env", conf)
 
 	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender(conf.ReportAddress))
 
@@ -28,8 +36,8 @@ func main() {
 		time.Duration(conf.ReportInterval)*time.Second)
 
 	if err != nil {
-		log.Printf("metric agent stop: %s\n", err.Error())
+		log.Error("metric agent stop", "error", err)
 	} else {
-		log.Println("metric agent stop")
+		log.Info("metric agent stop")
 	}
 }

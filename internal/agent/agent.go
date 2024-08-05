@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"golang.org/x/sync/errgroup"
-	"log"
+	"log/slog"
 	"maps"
 	"math/rand"
 	"sync"
@@ -43,37 +43,20 @@ func NewMetricAgent(provider metricProvider, sender metricSender) *MetricAgent {
 
 func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time.Duration) error {
 
-	log.Println("metric agent start")
+	slog.Info("metric agent start")
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
+
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				log.Println("start loading metrics")
+				slog.Info("start loading metrics")
 
-				metrics := a.provider.Load()
-
-				a.mx.Lock()
-
-				for _, v := range metrics {
-					a.state[v.Name()] = v
-				}
-
-				a.state[keyRandomValue] = metric.NewGaugeMetric(keyRandomValue, rand.Float64())
-
-				if pullCount, ok := a.state[keyPullCount].(*metric.CounterMetric); ok {
-					pullCount.Add(1)
-					a.state[keyPullCount] = pullCount
-				} else {
-					a.state[keyPullCount] = metric.NewCounterMetric(keyPullCount, 1)
-				}
-
-				a.mx.Unlock()
-
+				a.pull()
 			}
 
 			time.Sleep(pullInterval)
@@ -81,26 +64,19 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 	})
 
 	g.Go(func() error {
+
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				log.Println("start sending metrics")
+				slog.Info("start sending metrics")
 
-				a.mx.RLock()
-
-				localStat := make(map[string]metric.Metric, len(a.state))
-				maps.Copy(localStat, a.state)
-
-				a.mx.RUnlock()
-
-				for _, m := range localStat {
-					err := a.sender.Send(ctx, m)
-					if err != nil {
-						return fmt.Errorf("cant send metric: %w", err)
-					}
+				err := a.report(ctx)
+				if err != nil {
+					return err
 				}
+
 			}
 
 			time.Sleep(reportInterval)
@@ -109,6 +85,44 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("metric agent stop reason: %w", err)
+	}
+
+	return nil
+}
+
+func (a *MetricAgent) pull() {
+	metrics := a.provider.Load()
+
+	a.mx.Lock()
+	defer a.mx.Unlock()
+
+	for _, v := range metrics {
+		a.state[v.ID] = v
+	}
+
+	a.state[keyRandomValue] = metric.NewGaugeMetric(keyRandomValue, rand.Float64())
+
+	if pullCount, ok := a.state[keyPullCount]; ok {
+		*pullCount.Delta = *pullCount.Delta + 1
+		a.state[keyPullCount] = pullCount
+	} else {
+		a.state[keyPullCount] = metric.NewCounterMetric(keyPullCount, 1)
+	}
+}
+
+func (a *MetricAgent) report(ctx context.Context) error {
+	a.mx.RLock()
+
+	localStat := make(map[string]metric.Metric, len(a.state))
+	maps.Copy(localStat, a.state)
+
+	a.mx.RUnlock()
+
+	for _, m := range localStat {
+		err := a.sender.Send(ctx, m)
+		if err != nil {
+			return fmt.Errorf("cant send metric: %w", err)
+		}
 	}
 
 	return nil

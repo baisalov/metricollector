@@ -2,33 +2,76 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
+	"io"
+	"log/slog"
+	"maps"
 	"sync"
+	"time"
 )
 
 type MetricStorage struct {
-	mx      sync.Mutex
-	metrics map[string]metric.Metric
+	mx          sync.RWMutex
+	metrics     map[string]metric.Metric
+	archiver    io.ReadWriteSeeker
+	syncArchive bool
+	stopArchive chan struct{}
 }
 
-func NewMetricStorage() *MetricStorage {
-	return &MetricStorage{
-		metrics: make(map[string]metric.Metric),
+func NewMetricStorage(archiver io.ReadWriteSeeker, archiveInterval int64, restore bool) (*MetricStorage, error) {
+	storage := &MetricStorage{
+		metrics:  make(map[string]metric.Metric),
+		archiver: archiver,
 	}
+
+	if restore {
+		err := storage.restore()
+		if err != nil {
+			return nil, fmt.Errorf("failed to restore storage: %w", err)
+		}
+	}
+
+	if archiveInterval < 1 {
+		storage.syncArchive = true
+		return storage, nil
+
+	}
+
+	storage.stopArchive = make(chan struct{})
+
+	go func() {
+		sleep := time.Duration(archiveInterval) * time.Second
+
+		for {
+			time.Sleep(sleep)
+			select {
+			case <-storage.stopArchive:
+				return
+			default:
+				if err := storage.archive(); err != nil {
+					slog.Error("failed to archive metrics by timer", "error", err)
+				}
+			}
+		}
+	}()
+
+	return storage, nil
 }
 
-func (s *MetricStorage) key(t metric.Type, name string) string {
-	return t.String() + "_" + name
+func (s *MetricStorage) key(t metric.Type, id string) string {
+	return t.String() + "_" + id
 }
 
-func (s *MetricStorage) Get(_ context.Context, t metric.Type, name string) (metric.Metric, error) {
-	s.mx.Lock()
+func (s *MetricStorage) Get(_ context.Context, t metric.Type, id string) (metric.Metric, error) {
+	s.mx.RLock()
 
-	defer s.mx.Unlock()
+	defer s.mx.RUnlock()
 
-	m, ok := s.metrics[s.key(t, name)]
+	m, ok := s.metrics[s.key(t, id)]
 	if !ok {
-		return nil, metric.ErrMetricNotFound
+		return metric.Metric{}, metric.ErrMetricNotFound
 	}
 
 	return m, nil
@@ -37,17 +80,21 @@ func (s *MetricStorage) Get(_ context.Context, t metric.Type, name string) (metr
 func (s *MetricStorage) Save(_ context.Context, m metric.Metric) error {
 	s.mx.Lock()
 
-	defer s.mx.Unlock()
+	s.metrics[s.key(m.MType, m.ID)] = m
 
-	s.metrics[s.key(m.Type(), m.Name())] = m
+	s.mx.Unlock()
+
+	if s.syncArchive {
+		return s.archive()
+	}
 
 	return nil
 }
 
 func (s *MetricStorage) All(_ context.Context) ([]metric.Metric, error) {
-	s.mx.Lock()
+	s.mx.RLock()
 
-	defer s.mx.Unlock()
+	defer s.mx.RUnlock()
 
 	metrics := make([]metric.Metric, 0, len(s.metrics))
 
@@ -56,4 +103,61 @@ func (s *MetricStorage) All(_ context.Context) ([]metric.Metric, error) {
 	}
 
 	return metrics, nil
+}
+
+func (s *MetricStorage) restore() error {
+	var metrics map[string]metric.Metric
+
+	bytes, err := io.ReadAll(s.archiver)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	if len(bytes) > 0 {
+		err = json.Unmarshal(bytes, &metrics)
+		if err != nil {
+			return fmt.Errorf("failed to deserialize storage: %w", err)
+		}
+
+		s.metrics = metrics
+	}
+
+	return nil
+}
+
+func (s *MetricStorage) archive() error {
+
+	s.mx.RLock()
+
+	metrics := make(map[string]metric.Metric, len(s.metrics))
+	maps.Copy(metrics, s.metrics)
+
+	s.mx.RUnlock()
+
+	data, err := json.Marshal(&metrics)
+	if err != nil {
+		return fmt.Errorf("failed to serialize data: %w", err)
+	}
+
+	_, err = s.archiver.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to reset file: %w", err)
+	}
+
+	_, err = s.archiver.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+
+}
+
+func (s *MetricStorage) Close() error {
+	if !s.syncArchive {
+		s.stopArchive <- struct{}{}
+		close(s.stopArchive)
+	}
+
+	return s.archive()
 }
