@@ -17,7 +17,7 @@ type MetricStorage struct {
 	metrics     map[string]metric.Metric
 	archiver    io.ReadWriteSeeker
 	syncArchive bool
-	stopArchive chan int
+	stopArchive chan struct{}
 }
 
 func NewMetricStorage(archiver io.ReadWriteSeeker, archiveInterval int64, restore bool) (*MetricStorage, error) {
@@ -35,25 +35,27 @@ func NewMetricStorage(archiver io.ReadWriteSeeker, archiveInterval int64, restor
 
 	if archiveInterval < 1 {
 		storage.syncArchive = true
-	} else {
+		return storage, nil
 
-		storage.stopArchive = make(chan int)
+	}
 
-		go func() {
-			for {
-				time.Sleep(time.Duration(archiveInterval) * time.Second)
-				select {
-				case <-storage.stopArchive:
-					close(storage.stopArchive)
-					return
-				default:
-					if err := storage.archive(); err != nil {
-						slog.Error("failed to archive metrics by timer", "error", err)
-					}
+	storage.stopArchive = make(chan struct{})
+
+	go func() {
+		sleep := time.Duration(archiveInterval) * time.Second
+
+		for {
+			time.Sleep(sleep)
+			select {
+			case <-storage.stopArchive:
+				return
+			default:
+				if err := storage.archive(); err != nil {
+					slog.Error("failed to archive metrics by timer", "error", err)
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	return storage, nil
 }
@@ -153,7 +155,8 @@ func (s *MetricStorage) archive() error {
 
 func (s *MetricStorage) Close() error {
 	if !s.syncArchive {
-		s.stopArchive <- 1
+		s.stopArchive <- struct{}{}
+		close(s.stopArchive)
 	}
 
 	return s.archive()

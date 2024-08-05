@@ -94,6 +94,7 @@ func (a *MetricAgent) pull() {
 	metrics := a.provider.Load()
 
 	a.mx.Lock()
+	defer a.mx.Unlock()
 
 	for _, v := range metrics {
 		a.state[v.ID] = v
@@ -107,8 +108,6 @@ func (a *MetricAgent) pull() {
 	} else {
 		a.state[keyPullCount] = metric.NewCounterMetric(keyPullCount, 1)
 	}
-
-	a.mx.Unlock()
 }
 
 func (a *MetricAgent) report(ctx context.Context) error {
