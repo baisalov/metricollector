@@ -47,19 +47,23 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 
 	g, ctx := errgroup.WithContext(ctx)
 
+	pullTicker := time.NewTicker(pullInterval)
+	defer pullTicker.Stop()
+
+	reportTicker := time.NewTicker(reportInterval)
+	defer reportTicker.Stop()
+
 	g.Go(func() error {
 
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			default:
+			case <-pullTicker.C:
 				slog.Info("start loading metrics")
 
 				a.pull()
 			}
-
-			time.Sleep(pullInterval)
 		}
 	})
 
@@ -69,17 +73,14 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			default:
+			case <-reportTicker.C:
 				slog.Info("start sending metrics")
 
 				err := a.report(ctx)
 				if err != nil {
 					return err
 				}
-
 			}
-
-			time.Sleep(reportInterval)
 		}
 	})
 
