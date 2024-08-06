@@ -78,7 +78,7 @@ func (a *MetricAgent) Run(ctx context.Context, pullInterval, reportInterval time
 
 				err := a.report(ctx)
 				if err != nil {
-					return err
+					slog.Error("failed to send report", "error", err)
 				}
 			}
 		}
