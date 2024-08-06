@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/baisalov/metricollector/internal/closer"
 	"github.com/baisalov/metricollector/internal/server/config"
 	"github.com/baisalov/metricollector/internal/server/handler/http/middleware"
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
@@ -25,41 +26,31 @@ func main() {
 		Level: slog.LevelDebug,
 	}
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout, logOpt))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, logOpt))
+	slog.SetDefault(logger)
 
-	slog.SetDefault(log)
+	closings := closer.NewCloser()
+	defer closings.Close()
 
-	log.Info("running metric server", "env", conf)
+	logger.Info("running metric server", "env", conf)
 
 	slog.Info("creating file")
 	file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
 	if err != nil {
-		log.Error("failed to open file", "error", err)
+		logger.Error("failed to open file", "error", err)
 		return
 	}
 
-	defer func(file *os.File) {
-		slog.Debug("closing file")
-		err = file.Close()
-		if err != nil {
-			slog.Error("failed to close file", "error", err)
-		}
-	}(file)
+	closings.Add("closing file", file)
 
 	slog.Info("init storage")
 	storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
 	if err != nil {
-		log.Error("failed to init storage", "error", err)
+		logger.Error("failed to init storage", "error", err)
 		return
 	}
 
-	defer func(storage *memory.MetricStorage) {
-		slog.Debug("closing storage")
-		err = storage.Close()
-		if err != nil {
-			slog.Error("failed to close storage", "error", err)
-		}
-	}(storage)
+	closings.Add("closing metric storage", storage)
 
 	metricUpdater := service.NewMetricUpdateService(storage)
 
@@ -97,6 +88,6 @@ func main() {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Error("server stopped", "reason", err.Error())
+		logger.Error("server stopped", "reason", err.Error())
 	}
 }
