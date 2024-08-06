@@ -9,6 +9,7 @@ import (
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
 	"golang.org/x/sync/errgroup"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -37,8 +38,7 @@ func main() {
 	slog.Info("creating file")
 	file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
 	if err != nil {
-		logger.Error("failed to open file", "error", err)
-		return
+		log.Fatalf("failed to open file: %v\n", err)
 	}
 
 	closings.Add("closing file", file)
@@ -46,10 +46,8 @@ func main() {
 	slog.Info("init storage")
 	storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
 	if err != nil {
-		logger.Error("failed to init storage", "error", err)
-		return
+		log.Fatalf("failed to init storage: %v\n", err)
 	}
-
 	closings.Add("closing metric storage", storage)
 
 	metricUpdater := service.NewMetricUpdateService(storage)
