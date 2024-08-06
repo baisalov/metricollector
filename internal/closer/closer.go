@@ -31,7 +31,9 @@ func (c *Closer) Close() {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	for _, u := range c.units {
+	for i := len(c.units) - 1; i >= 0; i-- {
+		u := c.units[i]
+
 		if err := u.Close(); err != nil {
 			slog.Error(u.title, "error", err)
 			continue
