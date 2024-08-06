@@ -8,6 +8,8 @@ import (
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"log/slog"
@@ -48,11 +50,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init storage: %v\n", err)
 	}
+
 	closings.Add("closing metric storage", storage)
 
 	metricUpdater := service.NewMetricUpdateService(storage)
 
 	h := v1.NewMetricHandler(storage, metricUpdater)
+
+	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v\n", err)
+	}
+
+	db := stdlib.OpenDBFromPool(pool)
+	closings.Add("closing database connection", db)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
