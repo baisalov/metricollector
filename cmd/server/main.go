@@ -8,6 +8,7 @@ import (
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/sync/errgroup"
@@ -55,7 +56,9 @@ func main() {
 
 	metricUpdater := service.NewMetricUpdateService(storage)
 
-	h := v1.NewMetricHandler(storage, metricUpdater)
+	router := chi.NewMux()
+
+	v1.NewMetricHandler(storage, metricUpdater).Register(router)
 
 	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -70,7 +73,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:         conf.Address,
-		Handler:      middleware.RequestLogging(h.Handler()),
+		Handler:      middleware.RequestLogging(router),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,

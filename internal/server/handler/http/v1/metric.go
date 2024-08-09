@@ -37,11 +37,9 @@ func NewMetricHandler(provider metricProvider, updater metricUpdater) *MetricHan
 	}
 }
 
-func (h *MetricHandler) Handler() http.Handler {
+func (h *MetricHandler) Register(router chi.Router) {
 
-	router := chi.NewRouter()
-
-	acceptedContentType := middleware.AcceptedContentTypeJSON()
+	router.Use(middleware.GzipCompress, middleware.GzipDecompress)
 
 	router.Route(`/update/`, func(r chi.Router) {
 		r.Post(`/{type}/{name}/{value}`, h.Update)
@@ -50,11 +48,9 @@ func (h *MetricHandler) Handler() http.Handler {
 	router.Get(`/value/{type}/{name}`, h.Value)
 	router.Get(`/`, h.AllValues)
 
-	router.Method(http.MethodPost, `/update/`, acceptedContentType(http.HandlerFunc(h.UpdateV2)))
-	router.Method(http.MethodPost, `/value/`, acceptedContentType(http.HandlerFunc(h.ValueV2)))
-	router.Method(http.MethodPost, `/`, acceptedContentType(http.HandlerFunc(h.AllValuesV2)))
-
-	return middleware.GzipDecompress(middleware.GzipCompress(router))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/update/`, http.HandlerFunc(h.UpdateV2))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/value/`, http.HandlerFunc(h.ValueV2))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/`, http.HandlerFunc(h.AllValuesV2))
 }
 
 func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {

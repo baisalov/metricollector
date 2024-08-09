@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"github.com/baisalov/metricollector/internal/server/service"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -57,11 +58,15 @@ func (s *metricStorageMock) All(ctx context.Context) ([]metric.Metric, error) {
 }
 
 func setupServer(storage *metricStorageMock) *httptest.Server {
+	router := chi.NewMux()
+
 	serv := service.NewMetricUpdateService(storage)
 
 	handler := NewMetricHandler(storage, serv)
 
-	return httptest.NewServer(handler.Handler())
+	handler.Register(router)
+
+	return httptest.NewServer(router)
 }
 
 func encode(t *testing.T, m metric.Metric) io.Reader {
