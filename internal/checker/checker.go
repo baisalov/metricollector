@@ -40,6 +40,10 @@ func (c *Checker) Check(ctx context.Context) error {
 		}
 	}
 
+	if len(errs) == 0 {
+		return nil
+	}
+
 	return errs
 }
 
