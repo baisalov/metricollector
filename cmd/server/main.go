@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/baisalov/metricollector/internal/checker"
 	"github.com/baisalov/metricollector/internal/closer"
 	"github.com/baisalov/metricollector/internal/server/config"
 	"github.com/baisalov/metricollector/internal/server/handler/http/middleware"
@@ -67,6 +68,12 @@ func main() {
 
 	db := stdlib.OpenDBFromPool(pool)
 	closings.Add("closing database connection", db)
+
+	check := checker.NewChecker()
+
+	check.Register(checker.Wrap(db.Ping))
+
+	v1.NewHealthCheckHandler(check).Register(router)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
