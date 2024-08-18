@@ -9,6 +9,7 @@ import (
 	"github.com/baisalov/metricollector/internal/server/handler/http/v1"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
+	"github.com/baisalov/metricollector/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -34,6 +35,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, logOpt))
 	slog.SetDefault(logger)
 
+	logger.Info("running metric server", "env", conf)
+
 	closings := closer.NewCloser()
 	defer func() {
 		if err := closings.Close(); err != nil {
@@ -41,41 +44,46 @@ func main() {
 		}
 	}()
 
-	logger.Info("running metric server", "env", conf)
-
-	slog.Info("creating file")
-	file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
-	if err != nil {
-		log.Fatalf("failed to open file: %v\n", err)
-	}
-
-	closings.Register("closing file", file)
-
-	slog.Info("init storage")
-	storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
-	if err != nil {
-		log.Fatalf("failed to init storage: %v\n", err)
-	}
-
-	closings.Register("closing metric storage", storage)
-
-	metricUpdater := service.NewMetricUpdateService(storage)
+	check := checker.NewChecker()
 
 	router := chi.NewMux()
 
-	v1.NewMetricHandler(storage, metricUpdater).Register(router)
+	if conf.DatabaseDsn != "" {
+		pool, err := pgxpool.New(context.Background(), conf.DatabaseDsn)
+		if err != nil {
+			log.Fatalf("failed to connect to database: %v\n", err)
+		}
 
-	pool, err := pgxpool.New(context.Background(), conf.DatabaseDsn)
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v\n", err)
+		db := stdlib.OpenDBFromPool(pool)
+		closings.Register("closing database connection", db)
+
+		check.Register(checker.Wrap(db.Ping))
+
+		storage, err := postgres.NewMetricStorage(db)
+		if err != nil {
+			log.Fatalf("failed to init database storage: %v\n", err)
+		}
+
+		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage)).Register(router)
+	} else {
+		slog.Info("creating file")
+		file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
+		if err != nil {
+			log.Fatalf("failed to open file: %v\n", err)
+		}
+
+		closings.Register("closing file", file)
+
+		slog.Info("init memory storage")
+		storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
+		if err != nil {
+			log.Fatalf("failed to init storage: %v\n", err)
+		}
+
+		closings.Register("closing metric storage", storage)
+
+		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage)).Register(router)
 	}
-
-	db := stdlib.OpenDBFromPool(pool)
-	closings.Register("closing database connection", db)
-
-	check := checker.NewChecker()
-
-	check.Register(checker.Wrap(db.Ping))
 
 	v1.NewHealthCheckHandler(check).Register(router)
 
