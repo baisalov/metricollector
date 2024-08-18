@@ -73,10 +73,6 @@ func main() {
 	db := stdlib.OpenDBFromPool(pool)
 	closings.Register("closing database connection", db)
 
-	if err = db.Ping(); err != nil {
-		log.Fatalf("failed to ping database: %v\n", err)
-	}
-
 	check := checker.NewChecker()
 
 	check.Register(checker.Wrap(db.Ping))
