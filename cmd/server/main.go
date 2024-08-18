@@ -61,13 +61,17 @@ func main() {
 
 	v1.NewMetricHandler(storage, metricUpdater).Register(router)
 
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(context.Background(), conf.DatabaseDsn)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)
 	}
 
 	db := stdlib.OpenDBFromPool(pool)
 	closings.Register("closing database connection", db)
+
+	if err = db.Ping(); err != nil {
+		log.Fatalf("failed to ping database: %v\n", err)
+	}
 
 	check := checker.NewChecker()
 
