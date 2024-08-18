@@ -35,7 +35,11 @@ func main() {
 	slog.SetDefault(logger)
 
 	closings := closer.NewCloser()
-	defer closings.Close()
+	defer func() {
+		if err := closings.Close(); err != nil {
+			slog.Error("closing error", "error", err)
+		}
+	}()
 
 	logger.Info("running metric server", "env", conf)
 
