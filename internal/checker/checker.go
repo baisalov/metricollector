@@ -2,8 +2,8 @@ package checker
 
 import (
 	"context"
+	"errors"
 	"slices"
-	"strings"
 	"sync"
 )
 
@@ -32,7 +32,7 @@ func (c *Checker) Check(ctx context.Context) error {
 
 	c.mx.Unlock()
 
-	var errs checkErrors
+	var errs []error
 
 	for _, check := range checks {
 		if err := check(ctx); err != nil {
@@ -40,23 +40,7 @@ func (c *Checker) Check(ctx context.Context) error {
 		}
 	}
 
-	if len(errs) == 0 {
-		return nil
-	}
-
-	return errs
-}
-
-type checkErrors []error
-
-func (e checkErrors) Error() string {
-	var s []string
-
-	for _, err := range e {
-		s = append(s, err.Error())
-	}
-
-	return strings.Join(s, ", ")
+	return errors.Join(errs...)
 }
 
 func Wrap(fn func() error) CheckFunc {

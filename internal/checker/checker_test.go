@@ -41,8 +41,8 @@ func TestChecker_Register(t *testing.T) {
 	}
 }
 
-// Test Check
-func TestChecker_Check(t *testing.T) {
+// Test Check with no errors
+func TestChecker_Check_NoErrors(t *testing.T) {
 	c := NewChecker()
 	ctx := context.Background()
 
@@ -57,8 +57,20 @@ func TestChecker_Check(t *testing.T) {
 		t.Fatalf("expected no error when all checks pass, got %v", err)
 	}
 
+	// Test with multiple successful checks
+	c.Register(createCheckFunc(nil))
+	c.Register(createCheckFunc(nil))
+	if err := c.Check(ctx); err != nil {
+		t.Fatalf("expected no error when all checks pass, got %v", err)
+	}
+}
+
+// Test Check with errors
+func TestChecker_Check_WithErrors(t *testing.T) {
+	c := NewChecker()
+	ctx := context.Background()
+
 	// Test with one failing check
-	c = NewChecker() // reset checker
 	c.Register(createCheckFunc(errors.New("check failed")))
 	err := c.Check(ctx)
 	if err == nil {
@@ -80,22 +92,11 @@ func TestChecker_Check(t *testing.T) {
 		t.Fatal("expected an error when some checks fail, got nil")
 	}
 
-	expectedErr := "first failure, second failure"
-	if err.Error() != expectedErr {
-		t.Fatalf("expected error message to be '%v', got '%v'", expectedErr, err.Error())
-	}
-}
-
-// Test checkErrors Error method
-func TestCheckErrors_Error(t *testing.T) {
-	errs := checkErrors{
-		errors.New("error 1"),
-		errors.New("error 2"),
-	}
-
-	expectedErrStr := "error 1, error 2"
-	if errs.Error() != expectedErrStr {
-		t.Fatalf("expected error string to be '%v', got '%v'", expectedErrStr, errs.Error())
+	expectedErrs := []string{"first failure", "second failure"}
+	for _, expectedErr := range expectedErrs {
+		if !strings.Contains(err.Error(), expectedErr) {
+			t.Fatalf("expected error message to contain '%v', got '%v'", expectedErr, err.Error())
+		}
 	}
 }
 
