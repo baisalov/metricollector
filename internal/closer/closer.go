@@ -20,7 +20,7 @@ type unit struct {
 	io.Closer
 }
 
-func (c *Closer) Add(title string, cl io.Closer) {
+func (c *Closer) Register(title string, cl io.Closer) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 

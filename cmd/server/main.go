@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("failed to open file: %v\n", err)
 	}
 
-	closings.Add("closing file", file)
+	closings.Register("closing file", file)
 
 	slog.Info("init storage")
 	storage, err := memory.NewMetricStorage(file, conf.StoreInterval, conf.Restore)
@@ -53,7 +53,7 @@ func main() {
 		log.Fatalf("failed to init storage: %v\n", err)
 	}
 
-	closings.Add("closing metric storage", storage)
+	closings.Register("closing metric storage", storage)
 
 	metricUpdater := service.NewMetricUpdateService(storage)
 
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	db := stdlib.OpenDBFromPool(pool)
-	closings.Add("closing database connection", db)
+	closings.Register("closing database connection", db)
 
 	check := checker.NewChecker()
 
