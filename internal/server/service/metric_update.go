@@ -8,16 +8,36 @@ import (
 )
 
 type MetricUpdateService struct {
+	tm      transactionManager
 	storage MetricStorage
 }
 
-func NewMetricUpdateService(storage MetricStorage) *MetricUpdateService {
-	return &MetricUpdateService{storage: storage}
+func NewMetricUpdateService(storage MetricStorage, tm transactionManager) *MetricUpdateService {
+	return &MetricUpdateService{
+		storage: storage,
+		tm:      tm,
+	}
+}
+
+type transactionManager interface {
+	Do(context.Context, func(context.Context) error) error
 }
 
 type MetricStorage interface {
 	Get(ctx context.Context, t metric.Type, id string) (metric.Metric, error)
 	Save(ctx context.Context, m metric.Metric) error
+}
+
+func (s *MetricUpdateService) Updates(ctx context.Context, metrics ...metric.Metric) error {
+	return s.tm.Do(ctx, func(ctx context.Context) error {
+		for _, m := range metrics {
+			if _, err := s.Update(ctx, m); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (s *MetricUpdateService) Update(ctx context.Context, m metric.Metric) (metric.Metric, error) {
