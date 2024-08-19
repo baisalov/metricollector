@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 )
 
@@ -24,7 +25,14 @@ func NewMetricStorage(db *sql.DB) (*MetricStorage, error) {
 func (s MetricStorage) All(ctx context.Context) (metrics []metric.Metric, err error) {
 	query := `SELECT "type", "id", "delta", "value" FROM metrics WHERE true`
 
-	rows, err := s.db.QueryContext(ctx, query)
+	var rows *sql.Rows
+
+	if tx, ok := ctx.Value(ctxTxKey{}).(*sql.Tx); ok {
+		rows, err = tx.QueryContext(ctx, query)
+	} else {
+		rows, err = s.db.QueryContext(ctx, query)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -53,14 +61,30 @@ func (s MetricStorage) All(ctx context.Context) (metrics []metric.Metric, err er
 	return metrics, nil
 }
 
-func (s MetricStorage) Get(ctx context.Context, t metric.Type, id string) (metric.Metric, error) {
+func (s MetricStorage) Get(ctx context.Context, t metric.Type, id string) (m metric.Metric, err error) {
+
 	query := `SELECT "type", "id", "delta", "value" FROM metrics WHERE "type" = $1 AND "id" = $2`
 
-	row := s.db.QueryRowContext(ctx, query, t, id)
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return metric.Metric{}, fmt.Errorf("failed to make statmant: %w", err)
+	}
+
+	defer func() {
+		if r := stmt.Close(); r != nil {
+			err = errors.Join(err, r)
+		}
+	}()
+
+	if tx, ok := ctx.Value(ctxTxKey{}).(*sql.Tx); ok {
+		stmt = tx.StmtContext(ctx, stmt)
+	}
+
+	row := stmt.QueryRowContext(ctx, t, id)
 
 	var r rowMetric
 
-	err := row.Scan(&r.MType, &r.ID, &r.Delta, &r.Value)
+	err = row.Scan(&r.MType, &r.ID, &r.Delta, &r.Value)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return metric.Metric{}, metric.ErrMetricNotFound
@@ -75,7 +99,22 @@ func (s MetricStorage) Save(ctx context.Context, m metric.Metric) error {
 	query := `INSERT INTO metrics ("type", "id", "delta", "value") VALUES ($1, $2, $3, $4)
 		ON CONFLICT ("type", "id") DO UPDATE SET "delta"="excluded"."delta", "value"="excluded"."value"`
 
-	_, err := s.db.ExecContext(ctx, query, &m.MType, &m.ID, m.Delta, m.Value)
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to make statmant: %w", err)
+	}
+
+	defer func() {
+		if r := stmt.Close(); r != nil {
+			err = errors.Join(err, r)
+		}
+	}()
+
+	if tx, ok := ctx.Value(ctxTxKey{}).(*sql.Tx); ok {
+		stmt = tx.StmtContext(ctx, stmt)
+	}
+
+	_, err = stmt.ExecContext(ctx, &m.MType, &m.ID, m.Delta, m.Value)
 
 	return err
 }
