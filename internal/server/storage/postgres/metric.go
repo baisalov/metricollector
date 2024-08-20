@@ -147,7 +147,7 @@ func (s MetricStorage) migrate() error {
 	shame := `CREATE TABLE IF NOT EXISTS metrics (
     "type" VARCHAR(30) NOT NULL,
     "id" VARCHAR(30) NOT NULL,
-    "delta" INTEGER,
+    "delta" BIGINT,
     "value" DOUBLE PRECISION,
     PRIMARY KEY ("type", "id")
 	);`

@@ -10,6 +10,7 @@ import (
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/server/storage/memory"
 	"github.com/baisalov/metricollector/internal/server/storage/postgres"
+	"github.com/baisalov/metricollector/internal/transactions"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -64,7 +65,7 @@ func main() {
 			log.Fatalf("failed to init database storage: %v\n", err)
 		}
 
-		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage)).Register(router)
+		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage, postgres.NewTransactionManager(db))).Register(router)
 	} else {
 		slog.Info("creating file")
 		file, err := os.OpenFile(conf.StoragePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
@@ -82,7 +83,7 @@ func main() {
 
 		closings.Register("closing metric storage", storage)
 
-		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage)).Register(router)
+		v1.NewMetricHandler(storage, service.NewMetricUpdateService(storage, transactions.DiscardManager{})).Register(router)
 	}
 
 	v1.NewHealthCheckHandler(check).Register(router)

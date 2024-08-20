@@ -23,6 +23,7 @@ type MetricHandler struct {
 
 type metricUpdater interface {
 	Update(ctx context.Context, m metric.Metric) (metric.Metric, error)
+	Updates(ctx context.Context, metrics ...metric.Metric) error
 }
 
 type metricProvider interface {
@@ -48,9 +49,52 @@ func (h *MetricHandler) Register(router chi.Router) {
 	router.Get(`/value/{type}/{name}`, h.Value)
 	router.Get(`/`, h.AllValues)
 
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/updates/`, http.HandlerFunc(h.Updates))
 	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/update/`, http.HandlerFunc(h.UpdateV2))
 	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/value/`, http.HandlerFunc(h.ValueV2))
 	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/`, http.HandlerFunc(h.AllValuesV2))
+}
+
+func (h *MetricHandler) Updates(w http.ResponseWriter, r *http.Request) {
+
+	decoder := json.NewDecoder(r.Body)
+
+	var metrics []metric.Metric
+
+	err := decoder.Decode(&metrics)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			response.Error(w, "empty request body", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, metric.ErrIncorrectType) {
+			response.Error(w, metric.ErrIncorrectType.Error(), http.StatusBadRequest)
+			return
+		}
+
+		slog.Error("failed to decode request", "error", err)
+		response.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, m := range metrics {
+		if err = m.Validate(); err != nil {
+			response.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	slog.Debug("Update", "request", metrics)
+
+	err = h.updater.Updates(r.Context(), metrics...)
+	if err != nil {
+		slog.Error("failed to update metrics", "error", err)
+		response.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response.Ok(w)
 }
 
 func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
