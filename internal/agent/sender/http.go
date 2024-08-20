@@ -37,15 +37,15 @@ func NewHTTPSender(address string) *HTTPSender {
 	}
 }
 
-func (s *HTTPSender) Send(ctx context.Context, m metric.Metric) error {
+func (s *HTTPSender) Send(ctx context.Context, metrics []metric.Metric) error {
 
-	addr := fmt.Sprintf("%s/update/", s.address)
+	addr := fmt.Sprintf("%s/updates/", s.address)
 
 	var buf bytes.Buffer
 
 	enc := json.NewEncoder(&buf)
 
-	err := enc.Encode(m)
+	err := enc.Encode(metrics)
 	if err != nil {
 		return fmt.Errorf("failed to encode: %w", err)
 	}
@@ -64,7 +64,7 @@ func (s *HTTPSender) Send(ctx context.Context, m metric.Metric) error {
 		return fmt.Errorf("failed compress data: %w", err)
 	}
 
-	slog.Debug("sending metric", "metric", m)
+	slog.Debug("sending metric", "metric", metrics)
 
 	res, err := s.client.R().
 		SetContext(ctx).
@@ -81,6 +81,8 @@ func (s *HTTPSender) Send(ctx context.Context, m metric.Metric) error {
 	if res.StatusCode() != http.StatusOK {
 		return fmt.Errorf("unexpected response status: %d", res.StatusCode())
 	}
+
+	slog.Debug("metrics success send")
 
 	return nil
 }

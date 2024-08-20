@@ -25,7 +25,7 @@ type MetricAgent struct {
 }
 
 type metricSender interface {
-	Send(ctx context.Context, metric metric.Metric) error
+	Send(ctx context.Context, metrics []metric.Metric) error
 }
 
 type metricProvider interface {
@@ -119,11 +119,15 @@ func (a *MetricAgent) report(ctx context.Context) error {
 
 	a.mx.RUnlock()
 
+	metrics := make([]metric.Metric, 0, len(localStat))
+
 	for _, m := range localStat {
-		err := a.sender.Send(ctx, m)
-		if err != nil {
-			return fmt.Errorf("cant send metric: %w", err)
-		}
+		metrics = append(metrics, m)
+	}
+
+	err := a.sender.Send(ctx, metrics)
+	if err != nil {
+		return fmt.Errorf("cant send metric: %w", err)
 	}
 
 	return nil
