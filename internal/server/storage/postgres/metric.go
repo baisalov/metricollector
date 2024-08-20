@@ -65,7 +65,12 @@ func (s MetricStorage) Get(ctx context.Context, t metric.Type, id string) (m met
 
 	query := `SELECT "type", "id", "delta", "value" FROM metrics WHERE "type" = $1 AND "id" = $2`
 
-	stmt, err := s.db.PrepareContext(ctx, query)
+	var stmt *sql.Stmt
+
+	err = retry(func() error {
+		stmt, err = s.db.PrepareContext(ctx, query)
+		return err
+	})
 	if err != nil {
 		return metric.Metric{}, fmt.Errorf("failed to make statmant: %w", err)
 	}
@@ -84,7 +89,9 @@ func (s MetricStorage) Get(ctx context.Context, t metric.Type, id string) (m met
 
 	var r rowMetric
 
-	err = row.Scan(&r.MType, &r.ID, &r.Delta, &r.Value)
+	err = retry(func() error {
+		return row.Scan(&r.MType, &r.ID, &r.Delta, &r.Value)
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return metric.Metric{}, metric.ErrMetricNotFound
@@ -99,7 +106,15 @@ func (s MetricStorage) Save(ctx context.Context, m metric.Metric) error {
 	query := `INSERT INTO metrics ("type", "id", "delta", "value") VALUES ($1, $2, $3, $4)
 		ON CONFLICT ("type", "id") DO UPDATE SET "delta"="excluded"."delta", "value"="excluded"."value"`
 
-	stmt, err := s.db.PrepareContext(ctx, query)
+	var (
+		stmt *sql.Stmt
+		err  error
+	)
+
+	err = retry(func() error {
+		stmt, err = s.db.PrepareContext(ctx, query)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to make statmant: %w", err)
 	}
@@ -114,7 +129,10 @@ func (s MetricStorage) Save(ctx context.Context, m metric.Metric) error {
 		stmt = tx.StmtContext(ctx, stmt)
 	}
 
-	_, err = stmt.ExecContext(ctx, &m.MType, &m.ID, m.Delta, m.Value)
+	err = retry(func() error {
+		_, err = stmt.ExecContext(ctx, &m.MType, &m.ID, m.Delta, m.Value)
+		return err
+	})
 
 	return err
 }
@@ -152,7 +170,10 @@ func (s MetricStorage) migrate() error {
     PRIMARY KEY ("type", "id")
 	);`
 
-	_, err := s.db.Exec(shame)
+	err := retry(func() error {
+		_, err := s.db.Exec(shame)
+		return err
+	})
 
 	return err
 }
