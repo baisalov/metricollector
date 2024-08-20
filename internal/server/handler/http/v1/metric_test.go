@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
 	"github.com/baisalov/metricollector/internal/server/service"
+	"github.com/baisalov/metricollector/internal/transactions"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func (s *metricStorageMock) All(ctx context.Context) ([]metric.Metric, error) {
 func setupServer(storage *metricStorageMock) *httptest.Server {
 	router := chi.NewMux()
 
-	serv := service.NewMetricUpdateService(storage)
+	serv := service.NewMetricUpdateService(storage, transactions.DiscardManager{})
 
 	handler := NewMetricHandler(storage, serv)
 
