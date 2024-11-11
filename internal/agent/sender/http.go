@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
@@ -16,10 +18,11 @@ import (
 
 type HTTPSender struct {
 	address string
+	hashKey string
 	client  *resty.Client
 }
 
-func NewHTTPSender(address string) *HTTPSender {
+func NewHTTPSender(address, hashKey string) *HTTPSender {
 	if !strings.HasPrefix(address, "http://") || !strings.HasPrefix(address, "https://") {
 		address = "http://" + address
 	}
@@ -34,6 +37,7 @@ func NewHTTPSender(address string) *HTTPSender {
 	return &HTTPSender{
 		address: address,
 		client:  client,
+		hashKey: hashKey,
 	}
 }
 
@@ -48,6 +52,14 @@ func (s *HTTPSender) Send(ctx context.Context, metrics []metric.Metric) error {
 	err := enc.Encode(metrics)
 	if err != nil {
 		return fmt.Errorf("failed to encode: %w", err)
+	}
+
+	var hashSum []byte
+
+	if s.hashKey != "" {
+		h := hmac.New(sha256.New, []byte(s.hashKey))
+		h.Write(buf.Bytes())
+		hashSum = h.Sum(nil)
 	}
 
 	var zip bytes.Buffer
@@ -71,6 +83,7 @@ func (s *HTTPSender) Send(ctx context.Context, metrics []metric.Metric) error {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
+		SetHeader("HashSHA256", fmt.Sprintf("%x", hashSum)).
 		SetBody(zip.Bytes()).
 		Post(addr)
 
