@@ -49,6 +49,12 @@ func main() {
 
 	router := chi.NewMux()
 
+	router.Use(middleware.GzipCompress, middleware.GzipDecompress)
+
+	if conf.HashKey != "" {
+		router.Use(middleware.HashCheck(conf.HashKey))
+	}
+
 	if conf.DatabaseDsn != "" {
 		pool, err := pgxpool.New(context.Background(), conf.DatabaseDsn)
 		if err != nil {

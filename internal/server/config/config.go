@@ -12,6 +12,7 @@ type Config struct {
 	StoreInterval int64  `env:"STORE_INTERVAL" envDefault:"300"`
 	Restore       bool   `env:"RESTORE" envDefault:"true"`
 	DatabaseDsn   string `env:"DATABASE_DSN"`
+	HashKey       string `env:"KEY"`
 }
 
 func MustLoad() Config {
