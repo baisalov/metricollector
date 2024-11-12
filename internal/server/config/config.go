@@ -24,6 +24,7 @@ func MustLoad() Config {
 	flag.Int64Var(&conf.StoreInterval, "i", 300, "flush to file storage interval on seconds (0 - sync store)")
 	flag.BoolVar(&conf.Restore, "r", true, "restore storage from file when running")
 	flag.StringVar(&conf.DatabaseDsn, "d", "", "dsn for connection to database")
+	flag.StringVar(&conf.HashKey, "k", "", "key for hash sign")
 
 	err := env.Parse(&conf)
 	if err != nil {
