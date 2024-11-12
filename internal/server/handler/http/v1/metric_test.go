@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/baisalov/metricollector/internal/metric"
+	"github.com/baisalov/metricollector/internal/server/handler/http/middleware"
 	"github.com/baisalov/metricollector/internal/server/service"
 	"github.com/baisalov/metricollector/internal/transactions"
 	"github.com/go-chi/chi/v5"
@@ -64,6 +65,8 @@ func setupServer(storage *metricStorageMock) *httptest.Server {
 	serv := service.NewMetricUpdateService(storage, transactions.DiscardManager{})
 
 	handler := NewMetricHandler(storage, serv)
+
+	router.Use(middleware.GzipCompress, middleware.GzipDecompress)
 
 	handler.Register(router)
 
