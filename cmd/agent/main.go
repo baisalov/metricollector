@@ -26,7 +26,10 @@ func main() {
 
 	log.Info("running metric agent", "env", conf)
 
-	metricAgent := agent.NewMetricAgent(&provider.MemStats{}, sender.NewHTTPSender(conf.ReportAddress, conf.HashKey))
+	metricAgent := agent.NewMetricAgent(
+		sender.NewHTTPSender(conf.ReportAddress, conf.HashKey),
+		conf.ReteLimit,
+		provider.MemStats{}, provider.Custom{}, provider.Gopsutil{})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

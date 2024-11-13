@@ -41,7 +41,7 @@ func NewHTTPSender(address, hashKey string) *HTTPSender {
 	}
 }
 
-func (s *HTTPSender) Send(ctx context.Context, metrics []metric.Metric) error {
+func (s *HTTPSender) Send(ctx context.Context, metrics ...metric.Metric) error {
 
 	addr := fmt.Sprintf("%s/updates/", s.address)
 
@@ -49,7 +49,15 @@ func (s *HTTPSender) Send(ctx context.Context, metrics []metric.Metric) error {
 
 	enc := json.NewEncoder(&buf)
 
-	err := enc.Encode(metrics)
+	var err error
+	if len(metrics) == 1 {
+		addr = fmt.Sprintf("%s/update/", s.address)
+
+		err = enc.Encode(metrics[0])
+	} else {
+		err = enc.Encode(metrics)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to encode: %w", err)
 	}

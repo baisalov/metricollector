@@ -8,12 +8,16 @@ import (
 type MemStats struct {
 }
 
-func (s MemStats) Load() []metric.Metric {
+func (s MemStats) Source() string {
+	return "MemStats"
+}
+
+func (s MemStats) Load() ([]metric.Metric, error) {
 	var stats = new(runtime.MemStats)
 
 	runtime.ReadMemStats(stats)
 
-	return s.convert(stats)
+	return s.convert(stats), nil
 }
 
 func (s MemStats) convert(stats *runtime.MemStats) []metric.Metric {
