@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/baisalov/metricollector/internal/metric"
+	"github.com/baisalov/metricollector/internal/transactions"
 	"github.com/stretchr/testify/require"
 	"testing"
 
@@ -28,7 +29,7 @@ func (s *MetricStorageMock) Save(ctx context.Context, m metric.Metric) error {
 func TestMetricUpdateService_Update(t *testing.T) {
 	ctx := context.Background()
 	mockStorage := new(MetricStorageMock)
-	service := NewMetricUpdateService(mockStorage)
+	service := NewMetricUpdateService(mockStorage, transactions.DiscardManager{})
 
 	t.Run("Update existing counter metric", func(t *testing.T) {
 		initialDelta := int64(10)

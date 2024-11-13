@@ -79,5 +79,14 @@ func (w gzipWriter) WriteHeader(statusCode int) {
 }
 
 func (w gzipWriter) Close() error {
+	contentEncoding := w.ResponseWriter.Header().Get(_contentEncoding)
+	sendsGzip := strings.Contains(contentEncoding, "gzip")
+
+	if !sendsGzip {
+		w.writer.Reset(w.writer)
+
+		return nil
+	}
+
 	return w.writer.Close()
 }

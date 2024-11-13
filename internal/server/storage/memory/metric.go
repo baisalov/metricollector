@@ -42,14 +42,14 @@ func NewMetricStorage(archiver io.ReadWriteSeeker, archiveInterval int64, restor
 	storage.stopArchive = make(chan struct{})
 
 	go func() {
-		sleep := time.Duration(archiveInterval) * time.Second
+		ticker := time.NewTicker(time.Duration(archiveInterval) * time.Second)
+		defer ticker.Stop()
 
 		for {
-			time.Sleep(sleep)
 			select {
 			case <-storage.stopArchive:
 				return
-			default:
+			case <-ticker.C:
 				if err := storage.archive(); err != nil {
 					slog.Error("failed to archive metrics by timer", "error", err)
 				}

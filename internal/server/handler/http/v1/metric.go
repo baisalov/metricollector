@@ -16,6 +16,11 @@ import (
 	"strings"
 )
 
+const (
+	errFailedToDecodeRequest = "failed to decode request"
+	errEmptyRequestBody      = "empty request body"
+)
+
 type MetricHandler struct {
 	provider metricProvider
 	updater  metricUpdater
@@ -23,6 +28,7 @@ type MetricHandler struct {
 
 type metricUpdater interface {
 	Update(ctx context.Context, m metric.Metric) (metric.Metric, error)
+	Updates(ctx context.Context, metrics ...metric.Metric) error
 }
 
 type metricProvider interface {
@@ -37,11 +43,7 @@ func NewMetricHandler(provider metricProvider, updater metricUpdater) *MetricHan
 	}
 }
 
-func (h *MetricHandler) Handler() http.Handler {
-
-	router := chi.NewRouter()
-
-	acceptedContentType := middleware.AcceptedContentTypeJSON()
+func (h *MetricHandler) Register(router chi.Router) {
 
 	router.Route(`/update/`, func(r chi.Router) {
 		r.Post(`/{type}/{name}/{value}`, h.Update)
@@ -50,11 +52,52 @@ func (h *MetricHandler) Handler() http.Handler {
 	router.Get(`/value/{type}/{name}`, h.Value)
 	router.Get(`/`, h.AllValues)
 
-	router.Method(http.MethodPost, `/update/`, acceptedContentType(http.HandlerFunc(h.UpdateV2)))
-	router.Method(http.MethodPost, `/value/`, acceptedContentType(http.HandlerFunc(h.ValueV2)))
-	router.Method(http.MethodPost, `/`, acceptedContentType(http.HandlerFunc(h.AllValuesV2)))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/updates/`, http.HandlerFunc(h.Updates))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/update/`, http.HandlerFunc(h.UpdateV2))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/value/`, http.HandlerFunc(h.ValueV2))
+	router.With(middleware.AcceptedContentTypeJSON).Method(http.MethodPost, `/`, http.HandlerFunc(h.AllValuesV2))
+}
 
-	return middleware.GzipDecompress(middleware.GzipCompress(router))
+func (h *MetricHandler) Updates(w http.ResponseWriter, r *http.Request) {
+
+	decoder := json.NewDecoder(r.Body)
+
+	var metrics []metric.Metric
+
+	err := decoder.Decode(&metrics)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			response.Error(w, errEmptyRequestBody, http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, metric.ErrIncorrectType) {
+			response.Error(w, metric.ErrIncorrectType.Error(), http.StatusBadRequest)
+			return
+		}
+
+		slog.Error(errFailedToDecodeRequest, "error", err)
+		response.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, m := range metrics {
+		if err = m.Validate(); err != nil {
+			response.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	slog.Debug("Update", "request", metrics)
+
+	err = h.updater.Updates(r.Context(), metrics...)
+	if err != nil {
+		slog.Error("failed to update metrics", "error", err)
+		response.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response.Ok(w)
 }
 
 func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +108,7 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 
 	if err := decoder.Decode(&request); err != nil {
 		if errors.Is(err, io.EOF) {
-			response.Error(w, "empty request body", http.StatusBadRequest)
+			response.Error(w, errEmptyRequestBody, http.StatusBadRequest)
 			return
 		}
 
@@ -74,7 +117,7 @@ func (h *MetricHandler) UpdateV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		slog.Error("failed to decode request", "error", err)
+		slog.Error(errFailedToDecodeRequest, "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -104,7 +147,7 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 
 	if err := decoder.Decode(&req); err != nil {
 		if errors.Is(err, io.EOF) {
-			response.Error(w, "empty request body", http.StatusBadRequest)
+			response.Error(w, errEmptyRequestBody, http.StatusBadRequest)
 			return
 		}
 
@@ -113,7 +156,7 @@ func (h *MetricHandler) ValueV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		slog.Error("failed to decode request", "error", err)
+		slog.Error(errFailedToDecodeRequest, "error", err)
 		response.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
